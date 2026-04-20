@@ -123,6 +123,49 @@ def main(argv: list[str] | None = None) -> int:
     p_feedback_inbox = sub.add_parser("feedback-inbox", help="List captured audit feedback notes.")
     p_feedback_inbox.add_argument("--all", action="store_true", help="Show resolved/dismissed notes too.")
 
+    p_skill_web_build = sub.add_parser(
+        "skill-web-build",
+        help="Build llm-wiki-skill web viewer assets (audit-shared + web client).",
+    )
+    p_skill_web_build.add_argument(
+        "--install",
+        action="store_true",
+        help="Run npm install in required packages before build.",
+    )
+
+    p_skill_web_serve = sub.add_parser(
+        "skill-web-serve",
+        help="Serve llm-wiki-skill web viewer against the central wiki.",
+    )
+    p_skill_web_serve.add_argument("--wiki", help="Wiki root passed to the web server. Default: configured wiki_root.")
+    p_skill_web_serve.add_argument("--port", default="4175", help="Web viewer port. Default: 4175.")
+    p_skill_web_serve.add_argument(
+        "--install",
+        action="store_true",
+        help="Run npm install in required packages before build/start.",
+    )
+
+    p_skill_obsidian_build = sub.add_parser(
+        "skill-obsidian-build",
+        help="Build llm-wiki-skill Obsidian audit plugin (includes audit-shared build).",
+    )
+    p_skill_obsidian_build.add_argument(
+        "--install",
+        action="store_true",
+        help="Run npm install in required packages before build.",
+    )
+
+    p_skill_obsidian_link = sub.add_parser(
+        "skill-obsidian-link",
+        help="Link built llm-wiki-skill Obsidian audit plugin into an Obsidian vault.",
+    )
+    p_skill_obsidian_link.add_argument("vault", help="Obsidian vault root path.")
+    p_skill_obsidian_link.add_argument(
+        "--install",
+        action="store_true",
+        help="Run npm install/build before link.",
+    )
+
     args = parser.parse_args(argv)
     cfg = load_config(PROJECT_ROOT)
 
@@ -173,6 +216,14 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_feedback(cfg, args.text, args.title, args.source_channel, args.target, args.verdict, args.tag)
     if args.cmd == "feedback-inbox":
         return cmd_feedback_inbox(cfg, args.all)
+    if args.cmd == "skill-web-build":
+        return cmd_skill_web_build(cfg, args.install)
+    if args.cmd == "skill-web-serve":
+        return cmd_skill_web_serve(cfg, args.wiki, args.port, args.install)
+    if args.cmd == "skill-obsidian-build":
+        return cmd_skill_obsidian_build(cfg, args.install)
+    if args.cmd == "skill-obsidian-link":
+        return cmd_skill_obsidian_link(cfg, args.vault, args.install)
 
     parser.error(f"unknown command: {args.cmd}")
     return 2
@@ -253,6 +304,18 @@ def cmd_doctor(cfg: Config) -> int:
     optional = cfg.llm_wiki_skill_repo
     if optional.exists():
         print(f"{'ok':7} {'optional llm-wiki-skill':24} {optional}")
+        web = optional / "web"
+        plugin = optional / "plugins" / "obsidian-audit"
+        print(
+            f"{'ok' if web.exists() else 'warn':7} "
+            f"{'llm-wiki-skill web':24} "
+            f"{web}"
+        )
+        print(
+            f"{'ok' if plugin.exists() else 'warn':7} "
+            f"{'llm-wiki-skill plugin':24} "
+            f"{plugin}"
+        )
     else:
         print(f"{'warn':7} {'optional llm-wiki-skill':24} {optional} (not required at runtime)")
     return 0 if ok else 1
@@ -629,6 +692,112 @@ def run_llmwiki_convert(
     print(f"+ cd {cfg.wiki_root}")
     print(f"+ llmwiki.convert_all(adapters={adapters}, config_file={config_file})")
     return subprocess.call([sys.executable, "-c", py], cwd=cfg.wiki_root)
+
+
+def cmd_skill_web_build(cfg: Config, install: bool) -> int:
+    if _ensure_skill_repo(cfg) != 0:
+        return 1
+    if _ensure_npm() != 0:
+        return 1
+
+    audit_shared = cfg.llm_wiki_skill_repo / "audit-shared"
+    web = cfg.llm_wiki_skill_repo / "web"
+    if _ensure_dirs_exist(
+        [
+            ("audit-shared", audit_shared),
+            ("web", web),
+        ]
+    ) != 0:
+        return 1
+
+    if install and _run_npm(audit_shared, ["install"]) != 0:
+        return 1
+    if _run_npm(audit_shared, ["run", "build"]) != 0:
+        return 1
+    if install and _run_npm(web, ["install"]) != 0:
+        return 1
+    return _run_npm(web, ["run", "build"])
+
+
+def cmd_skill_web_serve(cfg: Config, wiki_raw: str | None, port: str, install: bool) -> int:
+    if cmd_skill_web_build(cfg, install) != 0:
+        return 1
+
+    web = cfg.llm_wiki_skill_repo / "web"
+    wiki = Path(os.path.expanduser(wiki_raw)).resolve() if wiki_raw else cfg.wiki_root.resolve()
+    if not wiki.exists() or not wiki.is_dir():
+        print(f"wiki path does not exist or is not a directory: {wiki}", file=sys.stderr)
+        return 1
+
+    args = ["start", "--", "--wiki", str(wiki), "--port", str(port)]
+    return _run_npm(web, args)
+
+
+def cmd_skill_obsidian_build(cfg: Config, install: bool) -> int:
+    if _ensure_skill_repo(cfg) != 0:
+        return 1
+    if _ensure_npm() != 0:
+        return 1
+
+    audit_shared = cfg.llm_wiki_skill_repo / "audit-shared"
+    plugin = cfg.llm_wiki_skill_repo / "plugins" / "obsidian-audit"
+    if _ensure_dirs_exist(
+        [
+            ("audit-shared", audit_shared),
+            ("plugins/obsidian-audit", plugin),
+        ]
+    ) != 0:
+        return 1
+
+    if install and _run_npm(audit_shared, ["install"]) != 0:
+        return 1
+    if _run_npm(audit_shared, ["run", "build"]) != 0:
+        return 1
+    if install and _run_npm(plugin, ["install"]) != 0:
+        return 1
+    return _run_npm(plugin, ["run", "build"])
+
+
+def cmd_skill_obsidian_link(cfg: Config, vault_raw: str, install: bool) -> int:
+    if cmd_skill_obsidian_build(cfg, install) != 0:
+        return 1
+
+    plugin = cfg.llm_wiki_skill_repo / "plugins" / "obsidian-audit"
+    vault = Path(os.path.expanduser(vault_raw)).resolve()
+    if not vault.exists() or not vault.is_dir():
+        print(f"vault path does not exist or is not a directory: {vault}", file=sys.stderr)
+        return 1
+
+    return _run_npm(plugin, ["run", "link", "--", str(vault)])
+
+
+def _ensure_skill_repo(cfg: Config) -> int:
+    if cfg.llm_wiki_skill_repo.exists():
+        return 0
+    print(f"llm-wiki-skill repo does not exist: {cfg.llm_wiki_skill_repo}", file=sys.stderr)
+    return 1
+
+
+def _ensure_npm() -> int:
+    if shutil.which("npm"):
+        return 0
+    print("npm not found in PATH", file=sys.stderr)
+    return 1
+
+
+def _ensure_dirs_exist(items: list[tuple[str, Path]]) -> int:
+    for label, path in items:
+        if not path.exists() or not path.is_dir():
+            print(f"missing directory [{label}]: {path}", file=sys.stderr)
+            return 1
+    return 0
+
+
+def _run_npm(cwd: Path, args: list[str]) -> int:
+    cmd = ["npm", *args]
+    print(f"+ cd {cwd}")
+    print("+ " + " ".join(cmd))
+    return subprocess.call(cmd, cwd=cwd)
 
 
 def _append_log(cfg: Config, now: datetime, line: str) -> None:

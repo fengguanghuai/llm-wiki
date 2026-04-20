@@ -1,1 +1,0 @@
-Vendored llm-wiki-skill placeholder (optional at runtime).

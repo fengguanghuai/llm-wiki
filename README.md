@@ -58,6 +58,10 @@ python3 -m pelib.cli feedback-inbox
 python3 -m pelib.cli promote-batch --to memory --dry-run
 python3 -m pelib.cli query "starship dotfiles"
 python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
+python3 -m pelib.cli skill-web-build --install
+python3 -m pelib.cli skill-web-serve --port 4175
+python3 -m pelib.cli skill-obsidian-build --install
+python3 -m pelib.cli skill-obsidian-link "/path/to/your/Obsidian vault"
 python3 -m pelib.cli build
 python3 -m pelib.cli serve --port 8765
 python3 -m pelib.cli link-agents
@@ -79,6 +83,10 @@ pel feedback-inbox
 pel promote-batch --to memory --dry-run
 pel query "starship dotfiles"
 pel obsidian-import "daily-logs/2026-03-25" --dry-run
+pel skill-web-build --install
+pel skill-web-serve --port 4175
+pel skill-obsidian-build --install
+pel skill-obsidian-link "/path/to/your/Obsidian vault"
 pel build
 pel serve
 pel link-agents
@@ -183,6 +191,29 @@ python3 -m pelib.cli obsidian-import "test-2026-03-25.md" "daily-logs/2026-03-27
 
 # apply for real
 python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25"
+```
+
+Run the vendored `llm-wiki-skill` web viewer via `pel`:
+
+```bash
+# one-time install + build
+python3 -m pelib.cli skill-web-build --install
+
+# start viewer against central wiki root (default wiki_root)
+python3 -m pelib.cli skill-web-serve --port 4175
+
+# or point to a custom wiki root
+python3 -m pelib.cli skill-web-serve --wiki "/path/to/wiki-root" --port 4175
+```
+
+Build/link the vendored Obsidian audit plugin via `pel`:
+
+```bash
+# one-time install + build
+python3 -m pelib.cli skill-obsidian-build --install
+
+# link into a vault (same as plugin's npm run link)
+python3 -m pelib.cli skill-obsidian-link "/path/to/your/Obsidian vault"
 ```
 
 ## What This Does Not Do Yet
