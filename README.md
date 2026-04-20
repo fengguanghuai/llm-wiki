@@ -12,7 +12,7 @@ The goal is one central local wiki shared by every agent, not one duplicated wik
 The central wiki is:
 
 ```text
-/Users/fengguanghuai/Documents/LLM-WIK Vault
+/Users/fengguanghuai/Documents/LLM-WIKI Vault
 ```
 
 This integration project wraps the AI vault and installs a shared thin skill that points agents back to it.

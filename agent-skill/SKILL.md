@@ -13,13 +13,13 @@ Use the central wiki below.
 
 ## Central Wiki
 
-- Wiki root: `/Users/fengguanghuai/Documents/LLM-WIK Vault`
-- Raw sources: `/Users/fengguanghuai/Documents/LLM-WIK Vault/raw`
-- Human/agent-maintained wiki: `/Users/fengguanghuai/Documents/LLM-WIK Vault/wiki`
-- Generated site: `/Users/fengguanghuai/Documents/LLM-WIK Vault/site`
+- Wiki root: `/Users/fengguanghuai/Documents/LLM-WIKI Vault`
+- Raw sources: `/Users/fengguanghuai/Documents/LLM-WIKI Vault/raw`
+- Human/agent-maintained wiki: `/Users/fengguanghuai/Documents/LLM-WIKI Vault/wiki`
+- Generated site: `/Users/fengguanghuai/Documents/LLM-WIKI Vault/site`
 - Agent schema files:
-  - `/Users/fengguanghuai/Documents/LLM-WIK Vault/CLAUDE.md`
-  - `/Users/fengguanghuai/Documents/LLM-WIK Vault/AGENTS.md`
+  - `/Users/fengguanghuai/Documents/LLM-WIKI Vault/CLAUDE.md`
+  - `/Users/fengguanghuai/Documents/LLM-WIKI Vault/AGENTS.md`
 
 ## Operating Model
 
