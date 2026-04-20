@@ -27,6 +27,8 @@ python3 -m pelib.cli doctor
 python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
+python3 -m pelib.cli inbox
+python3 -m pelib.cli promote <inbox-note> --to memory
 python3 -m pelib.cli build
 python3 -m pelib.cli serve --port 8765
 python3 -m pelib.cli link-agents
@@ -40,6 +42,8 @@ pel status
 pel sync --dry-run
 pel sync
 pel capture "A durable conclusion or decision"
+pel inbox
+pel promote <inbox-note> --to memory
 pel build
 pel serve
 pel link-agents
@@ -91,10 +95,26 @@ The inbox is intentionally separate from polished pages. An agent can later
 review inbox notes and promote them into `wiki/MEMORY.md`, `wiki/concepts/`,
 `wiki/entities/`, or `wiki/projects/`.
 
+Review open notes:
+
+```bash
+python3 -m pelib.cli inbox
+```
+
+Promote one note:
+
+```bash
+python3 -m pelib.cli promote 20260420-120000-example.md --to memory
+python3 -m pelib.cli promote "starship" --to concept --title "Starship Prompt"
+python3 -m pelib.cli promote "dotfiles" --to project --title "Dotfiles"
+```
+
+Promotion keeps the original inbox note and marks it as `status: promoted`
+with a `promoted_to` field, so the knowledge remains traceable.
+
 ## What This Does Not Do Yet
 
 - It does not rewrite the upstream `llmwiki` engine.
-- It does not auto-ingest arbitrary chat conclusions without an agent pass.
 - It does not store secrets or agent tokens.
 - It does not merge multiple Obsidian vaults.
 - It runs the upstream `Pratiyush/llm-wiki` code while overriding `REPO_ROOT`
@@ -103,7 +123,7 @@ review inbox notes and promote them into `wiki/MEMORY.md`, `wiki/concepts/`,
 
 ## Suggested Next Milestones
 
-1. Add an MCP server that exposes `query`, `search`, `read`, `sync`, and `build` to all agents.
-2. Add a durable "decision capture" command that appends user-approved conclusions to `wiki/MEMORY.md`.
-3. Add a small queue for things agents should ingest after a session.
+1. Add an Obsidian whitelist import command that avoids recursively ingesting the whole vault.
+2. Add a richer query helper that reads index/overview/hot/MEMORY and prints candidate pages.
+3. Add a batch promote workflow for reviewing all open inbox notes.
 4. Add a web/Obsidian feedback path using the audit format from `llm-wiki-skill`.

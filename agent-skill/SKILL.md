@@ -40,6 +40,9 @@ Run these from the integration project:
 cd /Users/fengguanghuai/Documents/Codex/2026-04-19-mac-2/workspace/projects/personal-execution-library
 python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
+python3 -m pelib.cli capture "A durable conclusion or decision"
+python3 -m pelib.cli inbox
+python3 -m pelib.cli promote <inbox-note> --to memory
 python3 -m pelib.cli build
 python3 -m pelib.cli serve
 ```
@@ -51,10 +54,14 @@ python3 -m pelib.cli serve
 - The user wants an answer grounded in their own local wiki.
 - The user wants an agent to reuse knowledge created by another agent.
 - The user asks to update memory, project facts, or execution conventions.
+- The user says "remember this", "this is the conclusion", or "use this later".
 
 ## Workflow Hints
 
 - For sync/build/serve, prefer the `pel` wrapper if installed.
 - For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
+- For durable conclusions, use `capture` first; then use `inbox` and `promote`
+  to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.
+- Do not promote uncertain or speculative claims without marking uncertainty.
 - If a fact is not in the wiki, say so and suggest what source to ingest.
 - Do not copy this wiki into agent-specific folders.

@@ -50,6 +50,20 @@ def main(argv: list[str] | None = None) -> int:
     p_capture.add_argument("--title", help="Optional title. Defaults to a slug from the text.")
     p_capture.add_argument("--tag", action="append", default=[], help="Tag to add; can be repeated.")
 
+    p_inbox = sub.add_parser("inbox", help="List open captured notes in the central wiki inbox.")
+    p_inbox.add_argument("--all", action="store_true", help="Show promoted/closed notes too.")
+
+    p_promote = sub.add_parser("promote", help="Promote one inbox note into durable wiki memory or a page.")
+    p_promote.add_argument("note", help="Inbox filename, path, or unique substring.")
+    p_promote.add_argument(
+        "--to",
+        choices=["memory", "concept", "entity", "project", "synthesis"],
+        default="memory",
+        help="Promotion target type. Default: memory.",
+    )
+    p_promote.add_argument("--title", help="Title for the promoted wiki page or memory section.")
+    p_promote.add_argument("--append", action="store_true", help="Append to an existing target page instead of refusing.")
+
     args = parser.parse_args(argv)
     cfg = load_config(PROJECT_ROOT)
 
@@ -86,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_doctor(cfg)
     if args.cmd == "capture":
         return cmd_capture(cfg, args.text, args.title, args.tag)
+    if args.cmd == "inbox":
+        return cmd_inbox(cfg, args.all)
+    if args.cmd == "promote":
+        return cmd_promote(cfg, args.note, args.to, args.title, args.append)
 
     parser.error(f"unknown command: {args.cmd}")
     return 2
@@ -200,6 +218,66 @@ status: open
     return 0
 
 
+def cmd_inbox(cfg: Config, include_all: bool) -> int:
+    notes = _read_inbox_notes(cfg)
+    shown = 0
+    for note in notes:
+        status = note["meta"].get("status", "open")
+        if status != "open" and not include_all:
+            continue
+        shown += 1
+        created = note["meta"].get("created", "")
+        title = note["meta"].get("title", note["path"].stem)
+        rel = note["path"].relative_to(cfg.wiki_root)
+        print(f"{shown:2}. [{status}] {created} {rel}")
+        print(f"    {title}")
+    if shown == 0:
+        print("No inbox notes.")
+    return 0
+
+
+def cmd_promote(
+    cfg: Config,
+    note_selector: str,
+    target_type: str,
+    title: str | None,
+    append: bool,
+) -> int:
+    note = _select_inbox_note(cfg, note_selector)
+    if note is None:
+        print(f"no matching inbox note: {note_selector}", file=sys.stderr)
+        return 1
+    if note["meta"].get("status") != "open":
+        print(f"note is not open: {note['path']}", file=sys.stderr)
+        return 1
+
+    now = datetime.now()
+    note_title = title or note["meta"].get("title") or note["path"].stem
+    conclusion = _extract_section(note["body"], "Captured Conclusion").strip()
+    if not conclusion:
+        conclusion = note["body"].strip()
+    if not conclusion:
+        print(f"note has no content: {note['path']}", file=sys.stderr)
+        return 1
+
+    if target_type == "memory":
+        target = cfg.wiki_root / "wiki" / "MEMORY.md"
+        _promote_to_memory(target, note_title, conclusion, note["path"], now)
+        target_label = "wiki/MEMORY.md"
+    else:
+        target = _target_page(cfg, target_type, note_title)
+        if target.exists() and not append:
+            print(f"target exists, use --append to add to it: {target}", file=sys.stderr)
+            return 1
+        _promote_to_page(target, target_type, note_title, conclusion, note["path"], now, append)
+        target_label = str(target.relative_to(cfg.wiki_root))
+
+    _mark_note_promoted(note["path"], target_label, now)
+    _append_log(cfg, now, f"promote | {note['path'].relative_to(cfg.wiki_root)} -> {target_label}")
+    print(f"promoted {note['path'].relative_to(cfg.wiki_root)} -> {target_label}")
+    return 0
+
+
 def run_llmwiki(cfg: Config, args: list[str]) -> int:
     if not cfg.wiki_root.exists():
         print(f"wiki root does not exist: {cfg.wiki_root}", file=sys.stderr)
@@ -228,6 +306,166 @@ def _append_log(cfg: Config, now: datetime, line: str) -> None:
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("a", encoding="utf-8") as f:
         f.write(f"\n## [{now.strftime('%Y-%m-%d')}] {line}\n")
+
+
+def _read_inbox_notes(cfg: Config) -> list[dict]:
+    inbox = cfg.wiki_root / "wiki" / "inbox"
+    if not inbox.exists():
+        return []
+    notes = []
+    for path in sorted(inbox.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        meta, body = _parse_frontmatter(text)
+        notes.append({"path": path, "meta": meta, "body": body})
+    return notes
+
+
+def _select_inbox_note(cfg: Config, selector: str) -> dict | None:
+    candidate = Path(os.path.expanduser(selector))
+    if not candidate.is_absolute():
+        candidate = cfg.wiki_root / "wiki" / "inbox" / selector
+    if candidate.exists():
+        text = candidate.read_text(encoding="utf-8")
+        meta, body = _parse_frontmatter(text)
+        return {"path": candidate, "meta": meta, "body": body}
+
+    matches = []
+    for note in _read_inbox_notes(cfg):
+        rel = str(note["path"].relative_to(cfg.wiki_root))
+        title = str(note["meta"].get("title", ""))
+        if selector in note["path"].name or selector in rel or selector in title:
+            matches.append(note)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        print("multiple matching inbox notes:", file=sys.stderr)
+        for note in matches:
+            print(f"  {note['path'].relative_to(cfg.wiki_root)}", file=sys.stderr)
+    return None
+
+
+def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return {}, text
+    raw = text[4:end]
+    body = text[end + 5 :]
+    meta: dict[str, str] = {}
+    for line in raw.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        value = value.strip().strip('"')
+        meta[key.strip()] = value
+    return meta, body
+
+
+def _extract_section(body: str, heading: str) -> str:
+    pattern = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.MULTILINE)
+    match = pattern.search(body)
+    if not match:
+        return ""
+    rest = body[match.end() :]
+    next_heading = re.search(r"^##\s+", rest, re.MULTILINE)
+    return rest[: next_heading.start()] if next_heading else rest
+
+
+def _promote_to_memory(target: Path, title: str, conclusion: str, source: Path, now: datetime) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        target.write_text("# MEMORY\n", encoding="utf-8")
+    with target.open("a", encoding="utf-8") as f:
+        f.write(
+            f"\n## {title}\n\n"
+            f"- Date: {now.date().isoformat()}\n"
+            f"- Source: [[{source.stem}]]\n\n"
+            f"{conclusion}\n"
+        )
+
+
+def _promote_to_page(
+    target: Path,
+    target_type: str,
+    title: str,
+    conclusion: str,
+    source: Path,
+    now: datetime,
+    append: bool,
+) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() and append:
+        with target.open("a", encoding="utf-8") as f:
+            f.write(
+                f"\n## Update - {now.date().isoformat()}\n\n"
+                f"Source: [[{source.stem}]]\n\n"
+                f"{conclusion}\n"
+            )
+        return
+
+    target.write_text(
+        f"""---
+title: "{title.replace('"', "'")}"
+type: {target_type}
+created: {now.date().isoformat()}
+updated: {now.date().isoformat()}
+sources: ["{source.stem}"]
+tags: ["promoted", "agent-capture"]
+---
+
+# {title}
+
+## Summary
+
+{conclusion}
+
+## Connections
+
+- [[{source.stem}]] - captured inbox source.
+""",
+        encoding="utf-8",
+    )
+
+
+def _target_page(cfg: Config, target_type: str, title: str) -> Path:
+    folders = {
+        "concept": "concepts",
+        "entity": "entities",
+        "project": "projects",
+        "synthesis": "syntheses",
+    }
+    folder = folders[target_type]
+    slug = _title_slug(title) if target_type in {"concept", "entity"} else _slugify(title)
+    return cfg.wiki_root / "wiki" / folder / f"{slug}.md"
+
+
+def _mark_note_promoted(path: Path, target_label: str, now: datetime) -> None:
+    text = path.read_text(encoding="utf-8")
+    meta, body = _parse_frontmatter(text)
+    meta["status"] = "promoted"
+    meta["promoted_at"] = now.isoformat(timespec="seconds")
+    meta["promoted_to"] = target_label
+    frontmatter = "\n".join(f"{k}: \"{v}\"" if _needs_quotes(v) else f"{k}: {v}" for k, v in meta.items())
+    path.write_text(
+        f"---\n{frontmatter}\n---\n{body.rstrip()}\n\n## Promotion\n\n"
+        f"- Promoted at: {now.isoformat(timespec='seconds')}\n"
+        f"- Promoted to: `{target_label}`\n",
+        encoding="utf-8",
+    )
+
+
+def _needs_quotes(value: str) -> bool:
+    return any(ch in value for ch in [":", "#", "[", "]", "{", "}", ","]) or value == ""
+
+
+def _title_slug(text: str) -> str:
+    parts = re.findall(r"[A-Za-z0-9\u4e00-\u9fff]+", text)
+    if not parts:
+        return "Untitled"
+    if any(re.search(r"[\u4e00-\u9fff]", part) for part in parts):
+        return "".join(parts)
+    return "".join(part[:1].upper() + part[1:] for part in parts)
 
 
 def _slugify(text: str) -> str:
@@ -288,6 +526,8 @@ cd {cfg.project_root}
 python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
+python3 -m pelib.cli inbox
+python3 -m pelib.cli promote <inbox-note> --to memory
 python3 -m pelib.cli build
 python3 -m pelib.cli serve
 ```
@@ -299,11 +539,15 @@ python3 -m pelib.cli serve
 - The user wants an answer grounded in their own local wiki.
 - The user wants an agent to reuse knowledge created by another agent.
 - The user asks to update memory, project facts, or execution conventions.
+- The user says "remember this", "this is the conclusion", or "use this later".
 
 ## Workflow Hints
 
 - For sync/build/serve, prefer the `pel` wrapper if installed.
 - For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
+- For durable conclusions, use `capture` first; then use `inbox` and `promote`
+  to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.
+- Do not promote uncertain or speculative claims without marking uncertainty.
 - If a fact is not in the wiki, say so and suggest what source to ingest.
 - Do not copy this wiki into agent-specific folders.
 """
