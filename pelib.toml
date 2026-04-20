@@ -1,6 +1,6 @@
 [paths]
 wiki_root = "/Users/fengguanghuai/Documents/LLM-WIKI Vault"
-upstream_root = "/Users/fengguanghuai/Documents/Codex/2026-04-19-mac-2/workspace/upstreams"
+upstream_root = "/Users/fengguanghuai/workspace/upstreams"
 
 [skill]
 name = "personal-execution-library"

@@ -37,7 +37,7 @@ Use the central wiki as the durable memory and execution library:
 Run these from the integration project:
 
 ```bash
-cd /Users/fengguanghuai/Documents/Codex/2026-04-19-mac-2/workspace/projects/personal-execution-library
+cd /Users/fengguanghuai/workspace/personal-execution-library
 python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
