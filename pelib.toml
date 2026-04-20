@@ -1,0 +1,9 @@
+[paths]
+wiki_root = "/Users/fengguanghuai/Documents/Obsidian Vault/LLM Wiki"
+upstream_root = "/Users/fengguanghuai/Documents/Codex/2026-04-19-mac-2/workspace/upstreams"
+
+[skill]
+name = "personal-execution-library"
+
+[sync]
+default_adapters = ["claude_code", "codex_cli", "copilot-chat"]
