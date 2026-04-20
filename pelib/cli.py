@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
 from pelib import __version__
-from pelib.config import Config, DEFAULT_UPSTREAM_ROOT, DEFAULT_WIKI_ROOT, load_config
+from pelib.config import Config, DEFAULT_WIKI_ROOT, load_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OBSIDIAN_VAULT = Path.home() / "Documents" / "Obsidian Vault"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     p_capture.add_argument("text", help="Conclusion, decision, or memory to save.")
     p_capture.add_argument("--title", help="Optional title. Defaults to a slug from the text.")
     p_capture.add_argument("--tag", action="append", default=[], help="Tag to add; can be repeated.")
+    p_capture.add_argument("--confidence", type=float, help="Optional confidence score in [0.0, 1.0].")
 
     p_inbox = sub.add_parser("inbox", help="List open captured notes in the central wiki inbox.")
     p_inbox.add_argument("--all", action="store_true", help="Show promoted/closed notes too.")
@@ -63,6 +68,60 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_promote.add_argument("--title", help="Title for the promoted wiki page or memory section.")
     p_promote.add_argument("--append", action="store_true", help="Append to an existing target page instead of refusing.")
+    p_promote.add_argument("--confidence", type=float, help="Override confidence score in [0.0, 1.0].")
+
+    p_promote_batch = sub.add_parser("promote-batch", help="Promote multiple open inbox notes in one run.")
+    p_promote_batch.add_argument(
+        "--to",
+        choices=["memory", "concept", "entity", "project", "synthesis"],
+        default="memory",
+        help="Promotion target type. Default: memory.",
+    )
+    p_promote_batch.add_argument("--append", action="store_true", help="Append to an existing target page instead of refusing.")
+    p_promote_batch.add_argument("--limit", type=int, default=0, help="Maximum open notes to promote. 0 means no limit.")
+    p_promote_batch.add_argument("--dry-run", action="store_true", help="Preview promotions without writing files.")
+    p_promote_batch.add_argument("--confidence", type=float, help="Override confidence score in [0.0, 1.0].")
+
+    p_query = sub.add_parser(
+        "query",
+        help="Search key wiki files and major page folders for relevant matches.",
+    )
+    p_query.add_argument("text", help="Search text.")
+    p_query.add_argument("--limit", type=int, default=12, help="Maximum number of candidate files to show.")
+
+    p_obsidian_import = sub.add_parser(
+        "obsidian-import",
+        help="Import only selected Obsidian files/folders (whitelist) via the obsidian adapter.",
+    )
+    p_obsidian_import.add_argument(
+        "sources",
+        nargs="+",
+        help="Whitelist source paths (.md files or folders). Relative paths are resolved under --vault-root.",
+    )
+    p_obsidian_import.add_argument(
+        "--vault-root",
+        default=str(DEFAULT_OBSIDIAN_VAULT),
+        help=f"Obsidian vault root for resolving relative sources. Default: {DEFAULT_OBSIDIAN_VAULT}",
+    )
+    p_obsidian_import.add_argument("--min-chars", type=int, default=50, help="Minimum markdown file size in bytes.")
+    p_obsidian_import.add_argument("--force", action="store_true", help="Ignore state and reconvert selected files.")
+    p_obsidian_import.add_argument("--dry-run", action="store_true", help="Preview conversion without writing output.")
+
+    p_feedback = sub.add_parser("feedback", help="Capture web/Obsidian audit feedback into wiki/feedback.")
+    p_feedback.add_argument("text", help="Feedback summary text.")
+    p_feedback.add_argument("--title", help="Optional title. Defaults to a slug from the summary.")
+    p_feedback.add_argument("--from", dest="source_channel", choices=["web", "obsidian"], default="web")
+    p_feedback.add_argument("--target", help="Optional page, project, or topic this feedback refers to.")
+    p_feedback.add_argument(
+        "--verdict",
+        choices=["approve", "needs-work", "question", "blocked", "info"],
+        default="info",
+        help="Audit verdict label.",
+    )
+    p_feedback.add_argument("--tag", action="append", default=[], help="Tag to add; can be repeated.")
+
+    p_feedback_inbox = sub.add_parser("feedback-inbox", help="List captured audit feedback notes.")
+    p_feedback_inbox.add_argument("--all", action="store_true", help="Show resolved/dismissed notes too.")
 
     args = parser.parse_args(argv)
     cfg = load_config(PROJECT_ROOT)
@@ -99,11 +158,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "doctor":
         return cmd_doctor(cfg)
     if args.cmd == "capture":
-        return cmd_capture(cfg, args.text, args.title, args.tag)
+        return cmd_capture(cfg, args.text, args.title, args.tag, args.confidence)
     if args.cmd == "inbox":
         return cmd_inbox(cfg, args.all)
     if args.cmd == "promote":
-        return cmd_promote(cfg, args.note, args.to, args.title, args.append)
+        return cmd_promote(cfg, args.note, args.to, args.title, args.append, args.confidence)
+    if args.cmd == "promote-batch":
+        return cmd_promote_batch(cfg, args.to, args.append, args.limit, args.dry_run, args.confidence)
+    if args.cmd == "query":
+        return cmd_query(cfg, args.text, args.limit)
+    if args.cmd == "obsidian-import":
+        return cmd_obsidian_import(cfg, args.sources, args.vault_root, args.min_chars, args.force, args.dry_run)
+    if args.cmd == "feedback":
+        return cmd_feedback(cfg, args.text, args.title, args.source_channel, args.target, args.verdict, args.tag)
+    if args.cmd == "feedback-inbox":
+        return cmd_feedback_inbox(cfg, args.all)
 
     parser.error(f"unknown command: {args.cmd}")
     return 2
@@ -134,7 +203,7 @@ def cmd_write_config(cfg: Config) -> int:
         return 0
     content = f"""[paths]
 wiki_root = "{DEFAULT_WIKI_ROOT}"
-upstream_root = "{DEFAULT_UPSTREAM_ROOT}"
+upstream_root = "{cfg.project_root / 'vendor'}"
 
 [skill]
 name = "personal-execution-library"
@@ -175,17 +244,24 @@ def cmd_doctor(cfg: Config) -> int:
         ("wiki CLAUDE.md", cfg.wiki_root / "CLAUDE.md"),
         ("wiki AGENTS.md", cfg.wiki_root / "AGENTS.md"),
         ("upstream llmwiki", cfg.llmwiki_repo),
-        ("upstream llm-wiki-skill", cfg.llm_wiki_skill_repo),
         ("shared skill", cfg.skill_dir / "SKILL.md"),
     ]
     for label, path in checks:
         exists = path.exists()
         ok = ok and exists
         print(f"{'ok' if exists else 'missing':7} {label:24} {path}")
+    optional = cfg.llm_wiki_skill_repo
+    if optional.exists():
+        print(f"{'ok':7} {'optional llm-wiki-skill':24} {optional}")
+    else:
+        print(f"{'warn':7} {'optional llm-wiki-skill':24} {optional} (not required at runtime)")
     return 0 if ok else 1
 
 
-def cmd_capture(cfg: Config, text: str, title: str | None, tags: list[str]) -> int:
+def cmd_capture(cfg: Config, text: str, title: str | None, tags: list[str], confidence: float | None) -> int:
+    conf = _normalize_confidence(confidence, "confidence")
+    if conf is None and confidence is not None:
+        return 1
     inbox = cfg.wiki_root / "wiki" / "inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     now = datetime.now()
@@ -193,13 +269,14 @@ def cmd_capture(cfg: Config, text: str, title: str | None, tags: list[str]) -> i
     path = inbox / f"{now.strftime('%Y%m%d-%H%M%S')}-{slug}.md"
     all_tags = ["inbox", "agent-capture", *tags]
     frontmatter_tags = ", ".join(f'"{tag}"' for tag in all_tags)
+    confidence_line = f"confidence: {conf:.2f}\n" if conf is not None else ""
     content = f"""---
 title: "{title or text[:80].replace('"', "'")}"
 type: inbox-note
 created: {now.isoformat(timespec="seconds")}
 tags: [{frontmatter_tags}]
 status: open
----
+{confidence_line}---
 
 # {title or text[:80]}
 
@@ -241,7 +318,11 @@ def cmd_promote(
     target_type: str,
     title: str | None,
     append: bool,
+    confidence_override: float | None,
 ) -> int:
+    conf_override = _normalize_confidence(confidence_override, "confidence")
+    if conf_override is None and confidence_override is not None:
+        return 1
     note = _select_inbox_note(cfg, note_selector)
     if note is None:
         print(f"no matching inbox note: {note_selector}", file=sys.stderr)
@@ -258,23 +339,241 @@ def cmd_promote(
     if not conclusion:
         print(f"note has no content: {note['path']}", file=sys.stderr)
         return 1
+    confidence = conf_override if conf_override is not None else _parse_confidence(note["meta"].get("confidence"))
 
     if target_type == "memory":
         target = cfg.wiki_root / "wiki" / "MEMORY.md"
-        _promote_to_memory(target, note_title, conclusion, note["path"], now)
+        _promote_to_memory(target, note_title, conclusion, note["path"], now, confidence)
         target_label = "wiki/MEMORY.md"
     else:
         target = _target_page(cfg, target_type, note_title)
         if target.exists() and not append:
             print(f"target exists, use --append to add to it: {target}", file=sys.stderr)
             return 1
-        _promote_to_page(target, target_type, note_title, conclusion, note["path"], now, append)
+        _promote_to_page(target, target_type, note_title, conclusion, note["path"], now, append, confidence)
         target_label = str(target.relative_to(cfg.wiki_root))
 
-    _mark_note_promoted(note["path"], target_label, now)
+    _mark_note_promoted(note["path"], target_label, now, confidence)
     _append_log(cfg, now, f"promote | {note['path'].relative_to(cfg.wiki_root)} -> {target_label}")
     print(f"promoted {note['path'].relative_to(cfg.wiki_root)} -> {target_label}")
     return 0
+
+
+def cmd_promote_batch(
+    cfg: Config,
+    target_type: str,
+    append: bool,
+    limit: int,
+    dry_run: bool,
+    confidence_override: float | None,
+) -> int:
+    conf_override = _normalize_confidence(confidence_override, "confidence")
+    if conf_override is None and confidence_override is not None:
+        return 1
+    if limit < 0:
+        print("limit must be >= 0", file=sys.stderr)
+        return 1
+    notes = [note for note in _read_inbox_notes(cfg) if note["meta"].get("status", "open") == "open"]
+    if not notes:
+        print("No open inbox notes.")
+        return 0
+    if limit > 0:
+        notes = notes[:limit]
+
+    now = datetime.now()
+    errors = 0
+    promoted = 0
+    for note in notes:
+        rel = note["path"].relative_to(cfg.wiki_root)
+        note_title = note["meta"].get("title") or note["path"].stem
+        conclusion = _extract_section(note["body"], "Captured Conclusion").strip() or note["body"].strip()
+        if not conclusion:
+            print(f"skip {rel}: empty note body", file=sys.stderr)
+            errors += 1
+            continue
+        confidence = conf_override if conf_override is not None else _parse_confidence(note["meta"].get("confidence"))
+
+        if target_type == "memory":
+            target = cfg.wiki_root / "wiki" / "MEMORY.md"
+            target_label = "wiki/MEMORY.md"
+            if not dry_run:
+                _promote_to_memory(target, note_title, conclusion, note["path"], now, confidence)
+        else:
+            target = _target_page(cfg, target_type, note_title)
+            target_label = str(target.relative_to(cfg.wiki_root))
+            if target.exists() and not append:
+                print(f"skip {rel}: target exists ({target_label}), rerun with --append", file=sys.stderr)
+                errors += 1
+                continue
+            if not dry_run:
+                _promote_to_page(target, target_type, note_title, conclusion, note["path"], now, append, confidence)
+
+        if dry_run:
+            print(f"[dry-run] {rel} -> {target_label}")
+        else:
+            _mark_note_promoted(note["path"], target_label, now, confidence)
+            _append_log(cfg, now, f"promote | {rel} -> {target_label}")
+            print(f"promoted {rel} -> {target_label}")
+        promoted += 1
+
+    summary = "would promote" if dry_run else "promoted"
+    print(f"summary: {summary} {promoted}, errors {errors}, total {len(notes)}")
+    return 0 if errors == 0 else 1
+
+
+def cmd_query(cfg: Config, text: str, limit: int) -> int:
+    if limit <= 0:
+        print("limit must be > 0", file=sys.stderr)
+        return 1
+
+    files = _query_files(cfg)
+    if not files:
+        print("No queryable wiki files found.")
+        return 1
+
+    terms = _tokenize_query(text)
+    if not terms:
+        print("query text produced no searchable terms", file=sys.stderr)
+        return 1
+
+    hits: list[tuple[int, Path, str]] = []
+    for path in files:
+        body = path.read_text(encoding="utf-8", errors="replace")
+        score, snippet = _score_file_match(body, terms)
+        if score > 0:
+            hits.append((score, path, snippet))
+
+    if not hits:
+        print("No matches.")
+        return 0
+
+    hits.sort(key=lambda item: (-item[0], str(item[1]).lower()))
+    print(f"query: {text}")
+    for idx, (score, path, snippet) in enumerate(hits[:limit], start=1):
+        rel = path.relative_to(cfg.wiki_root)
+        print(f"{idx:2}. score={score:2d} {rel}")
+        print(f"    {snippet}")
+    return 0
+
+
+def cmd_feedback(
+    cfg: Config,
+    text: str,
+    title: str | None,
+    source_channel: str,
+    target: str | None,
+    verdict: str,
+    tags: list[str],
+) -> int:
+    now = datetime.now()
+    feedback_root = cfg.wiki_root / "wiki" / "feedback"
+    feedback_root.mkdir(parents=True, exist_ok=True)
+    note_title = title or text[:80]
+    slug = _slugify(title or text)[:60] or "feedback"
+    path = feedback_root / f"{now.strftime('%Y%m%d-%H%M%S')}-{slug}.md"
+    all_tags = ["feedback", "audit", f"source-{source_channel}", f"verdict-{verdict}", *tags]
+    frontmatter_tags = ", ".join(f'"{tag}"' for tag in all_tags)
+    clean_target = target.replace('"', "'") if target else ""
+    target_line = f'target: "{clean_target}"\n' if target else ""
+    content = f"""---
+title: "{note_title.replace('"', "'")}"
+type: audit-feedback
+created: {now.isoformat(timespec="seconds")}
+source: {source_channel}
+verdict: {verdict}
+status: open
+tags: [{frontmatter_tags}]
+{target_line}---
+
+# {note_title}
+
+## Summary
+
+{text}
+
+## Findings
+
+- [ ] Add concrete findings here.
+
+## Suggested Action
+
+- [ ] Decide whether to capture/promote into `wiki/MEMORY.md` or project pages.
+"""
+    path.write_text(content, encoding="utf-8")
+    _append_log(cfg, now, f"feedback | {path.relative_to(cfg.wiki_root)}")
+    print(path)
+    return 0
+
+
+def cmd_feedback_inbox(cfg: Config, include_all: bool) -> int:
+    notes = _read_feedback_notes(cfg)
+    shown = 0
+    for note in notes:
+        status = note["meta"].get("status", "open")
+        if status != "open" and not include_all:
+            continue
+        shown += 1
+        created = note["meta"].get("created", "")
+        source = note["meta"].get("source", "")
+        verdict = note["meta"].get("verdict", "")
+        rel = note["path"].relative_to(cfg.wiki_root)
+        title = note["meta"].get("title", note["path"].stem)
+        print(f"{shown:2}. [{status}] [{source}/{verdict}] {created} {rel}")
+        print(f"    {title}")
+    if shown == 0:
+        print("No feedback notes.")
+    return 0
+
+
+def cmd_obsidian_import(
+    cfg: Config,
+    sources: list[str],
+    vault_root_raw: str,
+    min_chars: int,
+    force: bool,
+    dry_run: bool,
+) -> int:
+    if min_chars < 0:
+        print("min-chars must be >= 0", file=sys.stderr)
+        return 1
+
+    vault_root = Path(os.path.expanduser(vault_root_raw)).resolve()
+    if not vault_root.exists() or not vault_root.is_dir():
+        print(f"vault root does not exist or is not a directory: {vault_root}", file=sys.stderr)
+        return 1
+
+    selected = _collect_obsidian_markdown(sources, vault_root)
+    if not selected:
+        print("No markdown files matched whitelist sources.", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="pel-obsidian-whitelist-") as tmp:
+        stage_root = Path(tmp) / "vault"
+        copied = _stage_obsidian_whitelist(selected, stage_root, vault_root)
+        cfg_file = Path(tmp) / "sessions_config.whitelist.json"
+        cfg_data = {
+            "adapters": {
+                "obsidian": {
+                    "vault_paths": [str(stage_root)],
+                    "exclude_folders": [
+                        ".obsidian",
+                        ".trash",
+                        "Templates",
+                        "_templates",
+                        "templates",
+                        ".git",
+                        "node_modules",
+                    ],
+                    "min_content_chars": min_chars,
+                }
+            }
+        }
+        cfg_file.write_text(json.dumps(cfg_data, indent=2), encoding="utf-8")
+
+        print(f"obsidian-import: selected {len(selected)} files")
+        print(f"obsidian-import: staged {copied} files at {stage_root}")
+        print(f"obsidian-import: dry-run={str(dry_run).lower()} force={str(force).lower()}")
+        return run_llmwiki_convert(cfg, ["obsidian"], cfg_file, dry_run=dry_run, force=force)
 
 
 def run_llmwiki(cfg: Config, args: list[str]) -> int:
@@ -300,6 +599,38 @@ def run_llmwiki(cfg: Config, args: list[str]) -> int:
     return subprocess.call(cmd, cwd=cfg.wiki_root)
 
 
+def run_llmwiki_convert(
+    cfg: Config,
+    adapters: list[str],
+    config_file: Path,
+    *,
+    dry_run: bool,
+    force: bool,
+) -> int:
+    if not cfg.wiki_root.exists():
+        print(f"wiki root does not exist: {cfg.wiki_root}", file=sys.stderr)
+        return 1
+    if not cfg.llmwiki_repo.exists():
+        print(f"llmwiki upstream repo does not exist: {cfg.llmwiki_repo}", file=sys.stderr)
+        return 1
+
+    py = (
+        "import pathlib, sys\n"
+        f"sys.path.insert(0, {str(cfg.llmwiki_repo)!r})\n"
+        "import llmwiki\n"
+        f"llmwiki.REPO_ROOT = pathlib.Path({str(cfg.wiki_root)!r})\n"
+        "llmwiki.PACKAGE_ROOT = pathlib.Path(llmwiki.__file__).resolve().parent\n"
+        "from llmwiki.convert import convert_all\n"
+        f"adapters = {adapters!r}\n"
+        f"config_file = pathlib.Path({str(config_file)!r})\n"
+        f"rc = convert_all(adapters=adapters, config_file=config_file, dry_run={dry_run!r}, force={force!r})\n"
+        "raise SystemExit(rc)\n"
+    )
+    print(f"+ cd {cfg.wiki_root}")
+    print(f"+ llmwiki.convert_all(adapters={adapters}, config_file={config_file})")
+    return subprocess.call([sys.executable, "-c", py], cwd=cfg.wiki_root)
+
+
 def _append_log(cfg: Config, now: datetime, line: str) -> None:
     log = cfg.wiki_root / "wiki" / "log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -313,6 +644,18 @@ def _read_inbox_notes(cfg: Config) -> list[dict]:
         return []
     notes = []
     for path in sorted(inbox.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        meta, body = _parse_frontmatter(text)
+        notes.append({"path": path, "meta": meta, "body": body})
+    return notes
+
+
+def _read_feedback_notes(cfg: Config) -> list[dict]:
+    feedback = cfg.wiki_root / "wiki" / "feedback"
+    if not feedback.exists():
+        return []
+    notes = []
+    for path in sorted(feedback.glob("*.md")):
         text = path.read_text(encoding="utf-8")
         meta, body = _parse_frontmatter(text)
         notes.append({"path": path, "meta": meta, "body": body})
@@ -371,15 +714,167 @@ def _extract_section(body: str, heading: str) -> str:
     return rest[: next_heading.start()] if next_heading else rest
 
 
-def _promote_to_memory(target: Path, title: str, conclusion: str, source: Path, now: datetime) -> None:
+def _query_files(cfg: Config) -> list[Path]:
+    wiki = cfg.wiki_root / "wiki"
+    files: list[Path] = []
+    for path in [wiki / "index.md", wiki / "overview.md", wiki / "hot.md", wiki / "MEMORY.md"]:
+        if path.exists():
+            files.append(path)
+    for folder in ["concepts", "entities", "projects", "syntheses", "playbooks"]:
+        root = wiki / folder
+        if root.exists():
+            files.extend(sorted(root.rglob("*.md")))
+    return files
+
+
+def _collect_obsidian_markdown(sources: list[str], vault_root: Path) -> list[Path]:
+    exclude_folders = {
+        ".obsidian",
+        ".trash",
+        "Templates",
+        "_templates",
+        "templates",
+        ".git",
+        "node_modules",
+    }
+    selected: list[Path] = []
+    seen: set[Path] = set()
+
+    for raw in sources:
+        candidate = Path(os.path.expanduser(raw))
+        if not candidate.is_absolute():
+            candidate = vault_root / candidate
+        candidate = candidate.resolve()
+        try:
+            rel_from_vault = candidate.relative_to(vault_root)
+        except ValueError:
+            rel_from_vault = None
+        if rel_from_vault and any(part in exclude_folders for part in rel_from_vault.parts):
+            print(f"skip excluded source: {raw}", file=sys.stderr)
+            continue
+        if not candidate.exists():
+            print(f"skip missing source: {raw}", file=sys.stderr)
+            continue
+
+        if candidate.is_file():
+            if candidate.suffix.lower() != ".md":
+                print(f"skip non-markdown file: {candidate}", file=sys.stderr)
+                continue
+            if candidate not in seen:
+                seen.add(candidate)
+                selected.append(candidate)
+            continue
+
+        if candidate.is_dir():
+            for md in sorted(candidate.rglob("*.md")):
+                rel = md.relative_to(candidate)
+                if any(part in exclude_folders for part in rel.parts):
+                    continue
+                resolved = md.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                selected.append(resolved)
+            continue
+
+        print(f"skip unsupported source type: {candidate}", file=sys.stderr)
+
+    return selected
+
+
+def _stage_obsidian_whitelist(files: list[Path], stage_root: Path, vault_root: Path) -> int:
+    count = 0
+    for src in files:
+        try:
+            rel = src.relative_to(vault_root)
+            top = _slugify(rel.parts[0]) if len(rel.parts) > 1 else "vault-root"
+        except ValueError:
+            rel = Path("external") / src.name
+            top = "external"
+
+        # Encode full relative path into the staged filename so files like
+        # daily-logs/*/work-log.md do not collide on conversion output.
+        flattened = _flatten_markdown_relpath(rel)
+        dst = _unique_stage_path(stage_root / top / flattened)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        count += 1
+    return count
+
+
+def _unique_stage_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    idx = 2
+    while True:
+        candidate = parent / f"{stem}-{idx}{suffix}"
+        if not candidate.exists():
+            return candidate
+        idx += 1
+
+
+def _flatten_markdown_relpath(rel: Path) -> str:
+    parts = []
+    for raw in rel.with_suffix("").parts:
+        part = _slugify(raw) or "part"
+        parts.append(part)
+    stem = "--".join(parts) if parts else "note"
+    return f"{stem}.md"
+
+
+def _tokenize_query(text: str) -> list[str]:
+    # Keep CJK chunks and latin/digit terms; ignore one-character latin tokens.
+    raw = re.findall(r"[A-Za-z0-9]+|[\u4e00-\u9fff]+", text.lower())
+    return [term for term in raw if len(term) > 1 or re.search(r"[\u4e00-\u9fff]", term)]
+
+
+def _score_file_match(body: str, terms: list[str]) -> tuple[int, str]:
+    lowered = body.lower()
+    counts: Counter[str] = Counter()
+    for term in terms:
+        count = lowered.count(term)
+        if count > 0:
+            counts[term] = count
+    if not counts:
+        return 0, ""
+
+    score = len(counts) * 10 + sum(min(count, 5) for count in counts.values())
+    return score, _best_snippet(body, list(counts.keys()))
+
+
+def _best_snippet(body: str, terms: list[str]) -> str:
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
+    if not lines:
+        return "(empty file)"
+    lowered_terms = [term.lower() for term in terms]
+    for line in lines:
+        low = line.lower()
+        if any(term in low for term in lowered_terms):
+            return re.sub(r"\s+", " ", line)[:180]
+    return re.sub(r"\s+", " ", lines[0])[:180]
+
+
+def _promote_to_memory(
+    target: Path,
+    title: str,
+    conclusion: str,
+    source: Path,
+    now: datetime,
+    confidence: float | None,
+) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
         target.write_text("# MEMORY\n", encoding="utf-8")
+    confidence_line = f"- Confidence: {confidence:.2f}\n" if confidence is not None else ""
     with target.open("a", encoding="utf-8") as f:
         f.write(
             f"\n## {title}\n\n"
             f"- Date: {now.date().isoformat()}\n"
             f"- Source: [[{source.stem}]]\n\n"
+            f"{confidence_line}"
             f"{conclusion}\n"
         )
 
@@ -392,17 +887,21 @@ def _promote_to_page(
     source: Path,
     now: datetime,
     append: bool,
+    confidence: float | None,
 ) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists() and append:
+        confidence_line = f"Confidence: {confidence:.2f}\n\n" if confidence is not None else ""
         with target.open("a", encoding="utf-8") as f:
             f.write(
                 f"\n## Update - {now.date().isoformat()}\n\n"
                 f"Source: [[{source.stem}]]\n\n"
+                f"{confidence_line}"
                 f"{conclusion}\n"
             )
         return
 
+    confidence_line = f"confidence: {confidence:.2f}\n" if confidence is not None else ""
     target.write_text(
         f"""---
 title: "{title.replace('"', "'")}"
@@ -411,7 +910,7 @@ created: {now.date().isoformat()}
 updated: {now.date().isoformat()}
 sources: ["{source.stem}"]
 tags: ["promoted", "agent-capture"]
----
+{confidence_line}---
 
 # {title}
 
@@ -439,12 +938,14 @@ def _target_page(cfg: Config, target_type: str, title: str) -> Path:
     return cfg.wiki_root / "wiki" / folder / f"{slug}.md"
 
 
-def _mark_note_promoted(path: Path, target_label: str, now: datetime) -> None:
+def _mark_note_promoted(path: Path, target_label: str, now: datetime, confidence: float | None) -> None:
     text = path.read_text(encoding="utf-8")
     meta, body = _parse_frontmatter(text)
     meta["status"] = "promoted"
     meta["promoted_at"] = now.isoformat(timespec="seconds")
     meta["promoted_to"] = target_label
+    if confidence is not None:
+        meta["promoted_confidence"] = f"{confidence:.2f}"
     frontmatter = "\n".join(f"{k}: \"{v}\"" if _needs_quotes(v) else f"{k}: {v}" for k, v in meta.items())
     path.write_text(
         f"---\n{frontmatter}\n---\n{body.rstrip()}\n\n## Promotion\n\n"
@@ -471,6 +972,27 @@ def _slugify(text: str) -> str:
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", text)
     return text.strip("-")
+
+
+def _normalize_confidence(value: float | None, field_name: str) -> float | None:
+    if value is None:
+        return None
+    if value < 0.0 or value > 1.0:
+        print(f"{field_name} must be in [0.0, 1.0]", file=sys.stderr)
+        return None
+    return float(value)
+
+
+def _parse_confidence(value: str | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except ValueError:
+        return None
+    if parsed < 0.0 or parsed > 1.0:
+        return None
+    return parsed
 
 
 def agent_destinations(cfg: Config) -> dict[str, Path]:
@@ -527,6 +1049,11 @@ python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
 python3 -m pelib.cli inbox
 python3 -m pelib.cli promote <inbox-note> --to memory
+python3 -m pelib.cli feedback "This page needs clearer evidence links" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
+python3 -m pelib.cli feedback-inbox
+python3 -m pelib.cli promote-batch --to memory --dry-run
+python3 -m pelib.cli query "starship dotfiles"
+python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
 python3 -m pelib.cli build
 python3 -m pelib.cli serve
 ```
@@ -546,6 +1073,11 @@ python3 -m pelib.cli serve
 - For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
 - For durable conclusions, use `capture` first; then use `inbox` and `promote`
   to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.
+- Add `--confidence` on `capture`/`promote` when a claim is uncertain.
+- Capture review notes from web/Obsidian via `feedback` and triage with `feedback-inbox`.
+- For larger inbox cleanup, use `promote-batch` with `--dry-run` first.
+- For quick discovery before answering, use `query` to rank candidate pages.
+- For Obsidian notes, use `obsidian-import` to whitelist explicit paths instead of syncing the whole vault.
 - Do not promote uncertain or speculative claims without marking uncertainty.
 - If a fact is not in the wiki, say so and suggest what source to ingest.
 - Do not copy this wiki into agent-specific folders.

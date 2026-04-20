@@ -43,6 +43,11 @@ python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
 python3 -m pelib.cli inbox
 python3 -m pelib.cli promote <inbox-note> --to memory
+python3 -m pelib.cli feedback "This page needs clearer evidence links" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
+python3 -m pelib.cli feedback-inbox
+python3 -m pelib.cli promote-batch --to memory --dry-run
+python3 -m pelib.cli query "starship dotfiles"
+python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
 python3 -m pelib.cli build
 python3 -m pelib.cli serve
 ```
@@ -62,6 +67,11 @@ python3 -m pelib.cli serve
 - For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
 - For durable conclusions, use `capture` first; then use `inbox` and `promote`
   to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.
+- Add `--confidence` on `capture`/`promote` when a claim is uncertain.
+- Capture review notes from web/Obsidian via `feedback` and triage with `feedback-inbox`.
+- For larger inbox cleanup, use `promote-batch` with `--dry-run` first.
+- For quick discovery before answering, use `query` to rank candidate pages.
+- For Obsidian notes, use `obsidian-import` to whitelist explicit paths instead of syncing the whole vault.
 - Do not promote uncertain or speculative claims without marking uncertainty.
 - If a fact is not in the wiki, say so and suggest what source to ingest.
 - Do not copy this wiki into agent-specific folders.

@@ -11,10 +11,7 @@ except ModuleNotFoundError:  # Python 3.9/3.10 on macOS.
 
 
 DEFAULT_WIKI_ROOT = Path.home() / "Documents/Obsidian Vault/LLM Wiki"
-DEFAULT_UPSTREAM_ROOT = (
-    Path.home()
-    / "Documents/Codex/2026-04-19-mac-2/workspace/upstreams"
-)
+DEFAULT_UPSTREAM_ROOT = Path("vendor")
 
 
 @dataclass(frozen=True)
@@ -39,12 +36,14 @@ def load_config(project_root: Path) -> Config:
         data = tomllib.loads(text) if tomllib else _parse_simple_toml(text)
 
     paths = data.get("paths", {})
-    wiki_root = _expand(paths.get("wiki_root"), DEFAULT_WIKI_ROOT)
-    upstream_root = _expand(paths.get("upstream_root"), DEFAULT_UPSTREAM_ROOT)
-    llmwiki_repo = _expand(paths.get("llmwiki_repo"), upstream_root / "llm-wiki")
+    wiki_root = _expand(paths.get("wiki_root"), DEFAULT_WIKI_ROOT, project_root)
+    default_upstream = project_root / DEFAULT_UPSTREAM_ROOT
+    upstream_root = _expand(paths.get("upstream_root"), default_upstream, project_root)
+    llmwiki_repo = _expand(paths.get("llmwiki_repo"), upstream_root / "llm-wiki", project_root)
     skill_repo = _expand(
         paths.get("llm_wiki_skill_repo"),
         upstream_root / "llm-wiki-skill",
+        project_root,
     )
 
     skill = data.get("skill", {})
@@ -67,10 +66,13 @@ def load_config(project_root: Path) -> Config:
     )
 
 
-def _expand(value: str | os.PathLike | None, default: Path) -> Path:
+def _expand(value: str | os.PathLike | None, default: Path, base_dir: Path) -> Path:
     if value is None:
         return default.expanduser()
-    return Path(os.path.expandvars(os.path.expanduser(str(value))))
+    path = Path(os.path.expandvars(os.path.expanduser(str(value))))
+    if path.is_absolute():
+        return path
+    return (base_dir / path).resolve()
 
 
 def _parse_simple_toml(text: str) -> dict:

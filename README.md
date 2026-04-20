@@ -7,6 +7,20 @@ This project is a thin integration layer over two upstream ideas:
 
 The goal is one central local wiki shared by every agent, not one duplicated wiki per agent.
 
+## Vendored Engine
+
+This repository now vendors both upstream dependencies under `vendor/`:
+
+- `vendor/llm-wiki`
+- `vendor/llm-wiki-skill`
+
+`pel` uses the vendored `llm-wiki` engine by default, so users can run this
+project without separately cloning upstream repos.
+
+For repository size, this project keeps only the runtime-needed subset of
+`llm-wiki` (not upstream docs/tests/tooling). `llm-wiki-skill` is optional at
+runtime.
+
 ## Current Center
 
 The central wiki is:
@@ -39,9 +53,15 @@ python3 -m pelib.cli sync
 python3 -m pelib.cli capture "A durable conclusion or decision"
 python3 -m pelib.cli inbox
 python3 -m pelib.cli promote <inbox-note> --to memory
+python3 -m pelib.cli feedback "This page needs clearer evidence links" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
+python3 -m pelib.cli feedback-inbox
+python3 -m pelib.cli promote-batch --to memory --dry-run
+python3 -m pelib.cli query "starship dotfiles"
+python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
 python3 -m pelib.cli build
 python3 -m pelib.cli serve --port 8765
 python3 -m pelib.cli link-agents
+python3 -m unittest discover -s tests -v
 ```
 
 If installed editable:
@@ -54,13 +74,18 @@ pel sync
 pel capture "A durable conclusion or decision"
 pel inbox
 pel promote <inbox-note> --to memory
+pel feedback "This page needs clearer evidence links" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
+pel feedback-inbox
+pel promote-batch --to memory --dry-run
+pel query "starship dotfiles"
+pel obsidian-import "daily-logs/2026-03-25" --dry-run
 pel build
 pel serve
 pel link-agents
 ```
 
 `pel sync` intentionally runs only `claude_code`, `codex_cli`, and `copilot-chat`
-by default. The upstream `obsidian` adapter can ingest the entire vault,
+by default. The vendored upstream `obsidian` adapter can ingest the entire vault,
 including the wiki itself, so it is opt-in:
 
 ```bash
@@ -93,6 +118,7 @@ Use `capture` for durable conclusions that should not be lost in chat history:
 
 ```bash
 python3 -m pelib.cli capture "Starship should be managed by chezmoi and restored through Brewfile." --tag dotfiles
+python3 -m pelib.cli capture "Likely root cause is stale cache" --confidence 0.55
 ```
 
 This writes a note under:
@@ -117,23 +143,58 @@ Promote one note:
 python3 -m pelib.cli promote 20260420-120000-example.md --to memory
 python3 -m pelib.cli promote "starship" --to concept --title "Starship Prompt"
 python3 -m pelib.cli promote "dotfiles" --to project --title "Dotfiles"
+python3 -m pelib.cli promote "cache" --to memory --confidence 0.60
 ```
 
 Promotion keeps the original inbox note and marks it as `status: promoted`
 with a `promoted_to` field, so the knowledge remains traceable.
+
+Batch promote open notes:
+
+```bash
+python3 -m pelib.cli promote-batch --to memory --dry-run
+python3 -m pelib.cli promote-batch --to memory
+python3 -m pelib.cli promote-batch --to concept --append --limit 10
+```
+
+Search for candidate pages before answering:
+
+```bash
+python3 -m pelib.cli query "starship prompt"
+python3 -m pelib.cli query "dotfiles backup strategy" --limit 20
+```
+
+Capture web/Obsidian feedback in audit format:
+
+```bash
+python3 -m pelib.cli feedback "Needs stronger source links in conclusions." --from web --target "wiki/MEMORY.md" --verdict needs-work
+python3 -m pelib.cli feedback "Terminology is inconsistent across pages." --from obsidian --target "wiki/projects/llm-wiki.md" --verdict question --tag wording
+python3 -m pelib.cli feedback-inbox
+```
+
+Whitelist import from Obsidian without scanning the whole vault:
+
+```bash
+# one folder
+python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
+
+# multiple explicit files/folders
+python3 -m pelib.cli obsidian-import "test-2026-03-25.md" "daily-logs/2026-03-27" --dry-run
+
+# apply for real
+python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25"
+```
 
 ## What This Does Not Do Yet
 
 - It does not rewrite the upstream `llmwiki` engine.
 - It does not store secrets or agent tokens.
 - It does not merge multiple Obsidian vaults.
-- It runs the upstream `Pratiyush/llm-wiki` code while overriding `REPO_ROOT`
-  to point at your central Obsidian wiki. This avoids modifying the existing
-  wiki checkout even if its bundled Python package is incomplete or stale.
+- It runs vendored upstream `Pratiyush/llm-wiki` code while overriding
+  `REPO_ROOT` to point at your central Obsidian wiki.
 
 ## Suggested Next Milestones
 
-1. Add an Obsidian whitelist import command that avoids recursively ingesting the whole vault.
-2. Add a richer query helper that reads index/overview/hot/MEMORY and prints candidate pages.
-3. Add a batch promote workflow for reviewing all open inbox notes.
-4. Add a web/Obsidian feedback path using the audit format from `llm-wiki-skill`.
+1. Add feedback-to-promotion helpers (e.g. convert one feedback note directly into a capture/promote draft).
+2. Expand tests with end-to-end CLI invocation coverage for `feedback`, `query`, and `promote-batch`.
+3. Add configurable verdict taxonomy for different review workflows.
