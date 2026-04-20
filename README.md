@@ -12,10 +12,20 @@ The goal is one central local wiki shared by every agent, not one duplicated wik
 The central wiki is:
 
 ```text
+/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library
+```
+
+This integration project wraps that vault and installs a shared thin skill that points agents back to it.
+
+The previous full upstream checkout remains at:
+
+```text
 /Users/fengguanghuai/Documents/Obsidian Vault/LLM Wiki
 ```
 
-This integration project does not move or copy that wiki. It only wraps it and installs a shared thin skill that points agents back to it.
+That directory is kept as a source/backup. The active center is the cleaner
+`Personal Execution Library` vault, which contains only the wiki-facing parts:
+`CLAUDE.md`, `AGENTS.md`, `raw/`, `wiki/`, and generated `site/`.
 
 ## Commands
 

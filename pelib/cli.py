@@ -174,7 +174,6 @@ def cmd_doctor(cfg: Config) -> int:
         ("wiki root", cfg.wiki_root),
         ("wiki CLAUDE.md", cfg.wiki_root / "CLAUDE.md"),
         ("wiki AGENTS.md", cfg.wiki_root / "AGENTS.md"),
-        ("wiki package", cfg.wiki_root / "llmwiki"),
         ("upstream llmwiki", cfg.llmwiki_repo),
         ("upstream llm-wiki-skill", cfg.llm_wiki_skill_repo),
         ("shared skill", cfg.skill_dir / "SKILL.md"),

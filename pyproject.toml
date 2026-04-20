@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "A thin local integration layer that gives multiple AI agents one shared LLM Wiki / execution library."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "markdown>=3.9",
+]
 
 [project.scripts]
 pel = "pelib.cli:main"
