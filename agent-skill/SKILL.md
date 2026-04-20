@@ -13,13 +13,13 @@ Use the central wiki below.
 
 ## Central Wiki
 
-- Wiki root: `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library`
-- Raw sources: `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library/raw`
-- Human/agent-maintained wiki: `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library/wiki`
-- Generated site: `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library/site`
+- Wiki root: `/Users/fengguanghuai/Documents/LLM-WIK Vault`
+- Raw sources: `/Users/fengguanghuai/Documents/LLM-WIK Vault/raw`
+- Human/agent-maintained wiki: `/Users/fengguanghuai/Documents/LLM-WIK Vault/wiki`
+- Generated site: `/Users/fengguanghuai/Documents/LLM-WIK Vault/site`
 - Agent schema files:
-  - `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library/CLAUDE.md`
-  - `/Users/fengguanghuai/Documents/Obsidian Vault/Personal Execution Library/AGENTS.md`
+  - `/Users/fengguanghuai/Documents/LLM-WIK Vault/CLAUDE.md`
+  - `/Users/fengguanghuai/Documents/LLM-WIK Vault/AGENTS.md`
 
 ## Operating Model
 
