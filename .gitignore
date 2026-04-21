@@ -1,3 +1,32 @@
+# Local configuration
+pelib.toml
+
+# Python
+.venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Node / TypeScript
+node_modules/
+**/node_modules/
+**/dist/
+*.tsbuildinfo
+
+# Local wiki or generated output if someone creates it in-repo
+raw/
+wiki/
+site/
+.llmwiki-state.json
+.llmwiki-quarantine.jsonl
+
+# OS / editor
 .DS_Store
+.idea/
+.vscode/

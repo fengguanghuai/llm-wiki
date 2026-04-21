@@ -1,9 +1,0 @@
-[paths]
-wiki_root = "/Users/fengguanghuai/Documents/LLM-WIKI Vault"
-upstream_root = "./vendor"
-
-[skill]
-name = "personal-execution-library"
-
-[sync]
-default_adapters = ["claude_code", "codex_cli", "copilot-chat"]

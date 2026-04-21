@@ -10,7 +10,7 @@ except ModuleNotFoundError:  # Python 3.9/3.10 on macOS.
     tomllib = None
 
 
-DEFAULT_WIKI_ROOT = Path.home() / "Documents/Obsidian Vault/LLM Wiki"
+DEFAULT_WIKI_ROOT = Path.home() / "Documents" / "LLM-WIKI Vault"
 DEFAULT_UPSTREAM_ROOT = Path("vendor")
 
 
@@ -18,7 +18,6 @@ DEFAULT_UPSTREAM_ROOT = Path("vendor")
 class Config:
     project_root: Path
     wiki_root: Path
-    llmwiki_repo: Path
     llm_wiki_skill_repo: Path
     default_sync_adapters: tuple[str, ...]
     skill_name: str = "personal-execution-library"
@@ -36,13 +35,15 @@ def load_config(project_root: Path) -> Config:
         data = tomllib.loads(text) if tomllib else _parse_simple_toml(text)
 
     paths = data.get("paths", {})
-    wiki_root = _expand(paths.get("wiki_root"), DEFAULT_WIKI_ROOT, project_root)
+    wiki_root_value = paths.get("wiki_root") or os.environ.get("PEL_WIKI_ROOT")
+    wiki_root = _expand(wiki_root_value, DEFAULT_WIKI_ROOT, project_root)
     default_upstream = project_root / DEFAULT_UPSTREAM_ROOT
     upstream_root = _expand(paths.get("upstream_root"), default_upstream, project_root)
-    llmwiki_repo = _expand(paths.get("llmwiki_repo"), upstream_root / "llm-wiki", project_root)
+    default_skill_repo = project_root / "llm-wiki-skill"
+    legacy_skill_repo = upstream_root / "llm-wiki-skill"
     skill_repo = _expand(
         paths.get("llm_wiki_skill_repo"),
-        upstream_root / "llm-wiki-skill",
+        default_skill_repo if default_skill_repo.exists() or not legacy_skill_repo.exists() else legacy_skill_repo,
         project_root,
     )
 
@@ -59,7 +60,6 @@ def load_config(project_root: Path) -> Config:
     return Config(
         project_root=project_root,
         wiki_root=wiki_root,
-        llmwiki_repo=llmwiki_repo,
         llm_wiki_skill_repo=skill_repo,
         default_sync_adapters=default_adapters,
         skill_name=skill_name,

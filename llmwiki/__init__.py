@@ -7,12 +7,7 @@ Follows Andrej Karpathy's LLM Wiki pattern:
 Public API:
     - llmwiki.cli.main()              — the command-line entry point
     - llmwiki.convert.convert_all()   — .jsonl → markdown
-    - llmwiki.build.build_site()      — markdown → HTML
-    - llmwiki.serve.serve_site()      — local HTTP server
-    - llmwiki.graph.build_and_report() — knowledge graph
-    - llmwiki.exporters.export_all()  — AI-consumable exports
     - llmwiki.adapters.REGISTRY       — adapter registry
-    - llmwiki.mcp.server.main()       — MCP server (stdio)
 """
 
 __version__ = "1.1.0rc2"

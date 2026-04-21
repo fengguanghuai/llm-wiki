@@ -758,6 +758,7 @@ def render_session_markdown(
     records: list[dict[str, Any]],
     jsonl_path: Path,
     project_slug: str,
+    adapter_name: str,
     redact: Redactor,
     config: dict[str, Any],
     is_subagent_file: bool,
@@ -788,11 +789,12 @@ def render_session_markdown(
     duration_seconds = compute_duration_seconds(records)
 
     title = f"Session: {slug} — {date_str}"
+    adapter_tag = adapter_name.replace("_", "-")
     front = [
         "---",
         f'title: "{title}"',
         "type: source",
-        "tags: [claude-code, session-transcript]",
+        f"tags: [{adapter_tag}, session-transcript]",
         f"date: {date_str}",
         f"source_file: raw/sessions/{started.strftime('%Y-%m-%dT%H-%M')}-{project_slug}-{slug}.md",
         f"sessionId: {session_id}",
@@ -1044,7 +1046,7 @@ def convert_all(
                 continue
             try:
                 md, slug, started = render_session_markdown(
-                    records, path, project_slug, redact, config, adapter.is_subagent(path)
+                    records, path, project_slug, cls.name, redact, config, adapter.is_subagent(path)
                 )
             except Exception as e:
                 print(f"  error: {path.name}: {e}", file=sys.stderr)

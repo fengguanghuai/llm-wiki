@@ -43,10 +43,6 @@ def main(argv: list[str] | None = None) -> int:
     p_sync.add_argument("--all", action="store_true", help="Run all available upstream adapters, including Obsidian.")
     p_sync.add_argument("--dry-run", action="store_true", help="Show what would be converted without writing.")
     p_sync.add_argument("--adapter", nargs="+", help="Explicit adapter list to run.")
-    sub.add_parser("build", help="Run llmwiki build against the central wiki root.")
-    p_serve = sub.add_parser("serve", help="Run llmwiki serve against the central wiki root.")
-    p_serve.add_argument("--port", default="8765")
-
     sub.add_parser("doctor", help="Check for common setup problems.")
 
     p_capture = sub.add_parser("capture", help="Capture a durable conclusion into the central wiki inbox.")
@@ -194,10 +190,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             sync_args.append("--dry-run")
         return run_llmwiki(cfg, sync_args)
-    if args.cmd == "build":
-        return run_llmwiki(cfg, ["build"])
-    if args.cmd == "serve":
-        return run_llmwiki(cfg, ["serve", "--port", args.port])
     if args.cmd == "doctor":
         return cmd_doctor(cfg)
     if args.cmd == "capture":
@@ -232,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
 def cmd_status(cfg: Config) -> int:
     print(f"project_root:        {cfg.project_root}")
     print(f"wiki_root:           {cfg.wiki_root}")
-    print(f"llmwiki_repo:        {cfg.llmwiki_repo}")
+    print(f"llmwiki_package:     {cfg.project_root / 'llmwiki'}")
     print(f"llm_wiki_skill_repo: {cfg.llm_wiki_skill_repo}")
     print(f"default_adapters:    {', '.join(cfg.default_sync_adapters)}")
     print(f"shared_skill:        {cfg.skill_dir / 'SKILL.md'}")
@@ -254,7 +246,7 @@ def cmd_write_config(cfg: Config) -> int:
         return 0
     content = f"""[paths]
 wiki_root = "{DEFAULT_WIKI_ROOT}"
-upstream_root = "{cfg.project_root / 'vendor'}"
+llm_wiki_skill_repo = "./llm-wiki-skill"
 
 [skill]
 name = "personal-execution-library"
@@ -294,7 +286,7 @@ def cmd_doctor(cfg: Config) -> int:
         ("wiki root", cfg.wiki_root),
         ("wiki CLAUDE.md", cfg.wiki_root / "CLAUDE.md"),
         ("wiki AGENTS.md", cfg.wiki_root / "AGENTS.md"),
-        ("upstream llmwiki", cfg.llmwiki_repo),
+        ("bundled llmwiki", cfg.project_root / "llmwiki"),
         ("shared skill", cfg.skill_dir / "SKILL.md"),
     ]
     for label, path in checks:
@@ -643,12 +635,13 @@ def run_llmwiki(cfg: Config, args: list[str]) -> int:
     if not cfg.wiki_root.exists():
         print(f"wiki root does not exist: {cfg.wiki_root}", file=sys.stderr)
         return 1
-    if not cfg.llmwiki_repo.exists():
-        print(f"llmwiki upstream repo does not exist: {cfg.llmwiki_repo}", file=sys.stderr)
+    llmwiki_pkg = cfg.project_root / "llmwiki"
+    if not llmwiki_pkg.exists():
+        print(f"bundled llmwiki package does not exist: {llmwiki_pkg}", file=sys.stderr)
         return 1
     shim = (
         "import pathlib, sys\n"
-        f"sys.path.insert(0, {str(cfg.llmwiki_repo)!r})\n"
+        f"sys.path.insert(0, {str(cfg.project_root)!r})\n"
         "import llmwiki\n"
         "root = pathlib.Path.cwd()\n"
         "llmwiki.REPO_ROOT = root\n"
@@ -673,13 +666,14 @@ def run_llmwiki_convert(
     if not cfg.wiki_root.exists():
         print(f"wiki root does not exist: {cfg.wiki_root}", file=sys.stderr)
         return 1
-    if not cfg.llmwiki_repo.exists():
-        print(f"llmwiki upstream repo does not exist: {cfg.llmwiki_repo}", file=sys.stderr)
+    llmwiki_pkg = cfg.project_root / "llmwiki"
+    if not llmwiki_pkg.exists():
+        print(f"bundled llmwiki package does not exist: {llmwiki_pkg}", file=sys.stderr)
         return 1
 
     py = (
         "import pathlib, sys\n"
-        f"sys.path.insert(0, {str(cfg.llmwiki_repo)!r})\n"
+        f"sys.path.insert(0, {str(cfg.project_root)!r})\n"
         "import llmwiki\n"
         f"llmwiki.REPO_ROOT = pathlib.Path({str(cfg.wiki_root)!r})\n"
         "llmwiki.PACKAGE_ROOT = pathlib.Path(llmwiki.__file__).resolve().parent\n"
@@ -1223,8 +1217,6 @@ python3 -m pelib.cli feedback-inbox
 python3 -m pelib.cli promote-batch --to memory --dry-run
 python3 -m pelib.cli query "starship dotfiles"
 python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
-python3 -m pelib.cli build
-python3 -m pelib.cli serve
 ```
 
 ## When To Use
@@ -1238,7 +1230,7 @@ python3 -m pelib.cli serve
 
 ## Workflow Hints
 
-- For sync/build/serve, prefer the `pel` wrapper if installed.
+- For sync operations, prefer the `pel` wrapper if installed.
 - For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
 - For durable conclusions, use `capture` first; then use `inbox` and `promote`
   to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.

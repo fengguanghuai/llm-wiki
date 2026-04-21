@@ -13,13 +13,11 @@ from pelib.config import Config
 def _make_cfg(root: Path) -> Config:
     project_root = root / "project"
     wiki_root = root / "wiki-root"
-    llmwiki_repo = root / "llmwiki"
-    for p in [project_root, wiki_root, llmwiki_repo]:
+    for p in [project_root, wiki_root]:
         p.mkdir(parents=True, exist_ok=True)
     return Config(
         project_root=project_root,
         wiki_root=wiki_root,
-        llmwiki_repo=llmwiki_repo,
         llm_wiki_skill_repo=root / "llm-wiki-skill",
         default_sync_adapters=("claude_code", "codex_cli", "copilot-chat"),
     )

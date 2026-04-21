@@ -56,9 +56,8 @@ class ObsidianImportTests(unittest.TestCase):
             root = Path(tmp)
             project_root = root / "project"
             wiki_root = root / "wiki-root"
-            llmwiki_repo = root / "llmwiki"
             vault = root / "vault"
-            for p in [project_root, wiki_root, llmwiki_repo, vault]:
+            for p in [project_root, wiki_root, vault]:
                 p.mkdir(parents=True, exist_ok=True)
 
             note = vault / "folder" / "note.md"
@@ -68,7 +67,6 @@ class ObsidianImportTests(unittest.TestCase):
             cfg = Config(
                 project_root=project_root,
                 wiki_root=wiki_root,
-                llmwiki_repo=llmwiki_repo,
                 llm_wiki_skill_repo=root / "skill-upstream",
                 default_sync_adapters=("claude_code", "codex_cli", "copilot-chat"),
             )
