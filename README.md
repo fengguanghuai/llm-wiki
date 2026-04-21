@@ -24,7 +24,33 @@ Upstream attribution and boundaries are documented in [docs/VENDORED_PROJECTS.md
 - Git
 - Node.js/npm only for optional `llm-wiki-skill` web or Obsidian plugin commands
 
-## Setup
+## AI Agent Setup
+
+This project is designed so an AI agent can initialize it for you. Give the
+agent this repository URL and tell it:
+
+- where the local wiki should live, for example `~/Documents/LLM-WIKI Vault`
+- a short title for the wiki
+- whether to link the shared skill into Codex/Claude skill directories
+
+Agents should read [AGENTS.md](AGENTS.md) first. The main setup command is:
+
+```bash
+python3 -m pelib.cli init --wiki-root "~/Documents/LLM-WIKI Vault" --title "Personal Execution Library" --link-agents
+```
+
+Then validate:
+
+```bash
+python3 -m pelib.cli doctor
+python3 -m pelib.cli sync --dry-run
+```
+
+The `init` command is idempotent: it creates missing config, wiki folders,
+schema files, and the generated shared skill under `.pelib/agent-skill` while
+preserving existing wiki content.
+
+## Manual Setup
 
 Create a local config from the example:
 
@@ -48,6 +74,13 @@ wiki/
 site/
 CLAUDE.md
 AGENTS.md
+```
+
+If you are not using `init`, render the generated local skill before running
+`doctor`:
+
+```bash
+python3 -m pelib.cli write-skill
 ```
 
 ## Run
@@ -134,8 +167,8 @@ pel link-agents
 
 This creates symlinks such as:
 
-- `~/.codex/skills/personal-execution-library -> ./agent-skill`
-- `~/.claude/skills/personal-execution-library -> ./agent-skill`
+- `~/.codex/skills/personal-execution-library -> ./.pelib/agent-skill`
+- `~/.claude/skills/personal-execution-library -> ./.pelib/agent-skill`
 
 Durable knowledge stays in the configured wiki root, not inside agent-local skill folders.
 
@@ -147,4 +180,6 @@ python3 -m unittest discover -s tests -v
 
 ## Repository Hygiene
 
-Do not commit local wiki contents, virtual environments, generated package metadata, `node_modules`, or build outputs. Keep personal paths in `pelib.toml`, which is intentionally ignored.
+Do not commit local wiki contents, virtual environments, generated `.pelib/`
+skill output, generated package metadata, `node_modules`, or build outputs.
+Keep personal paths in `pelib.toml`, which is intentionally ignored.

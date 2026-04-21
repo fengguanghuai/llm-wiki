@@ -24,7 +24,7 @@ class Config:
 
     @property
     def skill_dir(self) -> Path:
-        return self.project_root / "agent-skill"
+        return self.project_root / ".pelib" / "agent-skill"
 
 
 def load_config(project_root: Path) -> Config:

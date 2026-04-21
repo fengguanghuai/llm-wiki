@@ -1,5 +1,6 @@
 # Local configuration
 pelib.toml
+.pelib/
 
 # Python
 .venv/

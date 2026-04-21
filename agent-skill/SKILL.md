@@ -7,30 +7,27 @@ description: >-
 
 # Personal Execution Library
 
-This is a thin shared skill. Do not create an agent-specific knowledge base.
-Use the configured central wiki for durable memory.
+This is a thin shared skill template. Do not create an agent-specific knowledge
+base. Use the configured central wiki for durable memory.
 
 ## Setup
 
-This repository expects a local `pelib.toml` file. Start from:
+For a local installation, initialize the repository with:
 
 ```bash
-cp pelib.example.toml pelib.toml
+python3 -m pelib.cli init --wiki-root "~/Documents/LLM-WIKI Vault" --title "Personal Execution Library" --link-agents
 ```
 
-Then set:
-
-```toml
-[paths]
-wiki_root = "~/Documents/LLM-WIKI Vault"
-```
+This writes the generated local skill to `.pelib/agent-skill/` and links agents
+to that generated copy. The tracked `agent-skill/SKILL.md` file is only a
+source template.
 
 The configured wiki root should contain:
 
-- `raw/` — immutable converted source material
-- `wiki/` — agent/human-maintained durable knowledge
-- `site/` — generated output, if used
-- `CLAUDE.md` and/or `AGENTS.md` — local operating schema
+- `raw/` - immutable converted source material
+- `wiki/` - agent/human-maintained durable knowledge
+- `site/` - generated output, if used
+- `CLAUDE.md` and/or `AGENTS.md` - local operating schema
 
 ## Operating Model
 

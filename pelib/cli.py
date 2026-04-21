@@ -32,6 +32,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("write-config", help="Create pelib.toml with current defaults.")
     sub.add_parser("write-skill", help="Render the shared agent skill file.")
 
+    p_init = sub.add_parser("init", help="Initialize local config and a wiki root for agent-driven setup.")
+    p_init.add_argument("--wiki-root", help="Local LLM Wiki root path. Defaults to configured or built-in path.")
+    p_init.add_argument("--title", default="Personal Execution Library", help="Title for a newly scaffolded wiki.")
+    p_init.add_argument(
+        "--overwrite-config",
+        action="store_true",
+        help="Rewrite pelib.toml even when it already exists.",
+    )
+    p_init.add_argument(
+        "--link-agents",
+        action="store_true",
+        help="Symlink the shared skill into supported local agent skill directories.",
+    )
+    p_init.add_argument("--agents", nargs="+", default=["codex", "claude"], choices=["codex", "claude"])
+    p_init.add_argument("--force-link", action="store_true", help="Replace existing non-symlink skill directories.")
+
     p_link = sub.add_parser("link-agents", help="Symlink the shared skill into agent skill directories.")
     p_link.add_argument("--agents", nargs="+", default=["codex", "claude"], choices=["codex", "claude"])
     p_link.add_argument("--force", action="store_true", help="Replace existing non-symlink skill directories.")
@@ -173,6 +189,16 @@ def main(argv: list[str] | None = None) -> int:
         write_skill(cfg)
         print(f"wrote {cfg.skill_dir / 'SKILL.md'}")
         return 0
+    if args.cmd == "init":
+        return cmd_init(
+            cfg,
+            wiki_root_raw=args.wiki_root,
+            title=args.title,
+            overwrite_config=args.overwrite_config,
+            link_agents=args.link_agents,
+            agents=args.agents,
+            force_link=args.force_link,
+        )
     if args.cmd == "link-agents":
         write_skill(cfg)
         return cmd_link_agents(cfg, args.agents, args.force)
@@ -244,19 +270,222 @@ def cmd_write_config(cfg: Config) -> int:
     if path.exists():
         print(f"exists: {path}")
         return 0
+    _write_config_file(cfg, DEFAULT_WIKI_ROOT)
+    print(f"wrote {path}")
+    return 0
+
+
+def _write_config_file(cfg: Config, wiki_root: Path) -> None:
     content = f"""[paths]
-wiki_root = "{DEFAULT_WIKI_ROOT}"
+wiki_root = "{_toml_string(wiki_root)}"
 llm_wiki_skill_repo = "./llm-wiki-skill"
 
 [skill]
-name = "personal-execution-library"
+name = "{_toml_string(cfg.skill_name)}"
 
 [sync]
 default_adapters = ["claude_code", "codex_cli", "copilot-chat"]
 """
-    path.write_text(content, encoding="utf-8")
-    print(f"wrote {path}")
-    return 0
+    (cfg.project_root / "pelib.toml").write_text(content, encoding="utf-8")
+
+
+def _toml_string(value: object) -> str:
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _resolve_user_path(raw: str) -> Path:
+    return Path(os.path.expandvars(os.path.expanduser(raw))).resolve()
+
+
+def cmd_init(
+    cfg: Config,
+    *,
+    wiki_root_raw: str | None,
+    title: str,
+    overwrite_config: bool,
+    link_agents: bool,
+    agents: list[str],
+    force_link: bool,
+) -> int:
+    requested_wiki_root = _resolve_user_path(wiki_root_raw) if wiki_root_raw else cfg.wiki_root
+    config_path = cfg.project_root / "pelib.toml"
+    if config_path.exists() and not overwrite_config and requested_wiki_root != cfg.wiki_root:
+        print(
+            f"pelib.toml already exists with wiki_root {cfg.wiki_root}; "
+            "rerun with --overwrite-config to replace it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    wiki_root = cfg.wiki_root if config_path.exists() and not overwrite_config else requested_wiki_root
+    init_cfg = Config(
+        project_root=cfg.project_root,
+        wiki_root=wiki_root,
+        llm_wiki_skill_repo=cfg.llm_wiki_skill_repo,
+        default_sync_adapters=cfg.default_sync_adapters,
+        skill_name=cfg.skill_name,
+    )
+
+    if config_path.exists() and not overwrite_config:
+        print(f"kept existing config: {config_path}")
+    else:
+        _write_config_file(init_cfg, wiki_root)
+        print(f"wrote config: {config_path}")
+
+    try:
+        created = _ensure_wiki_skeleton(init_cfg, title)
+    except NotADirectoryError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if created:
+        print("created wiki files:")
+        for path in created:
+            print(f"  {path}")
+    else:
+        print("wiki skeleton already present")
+
+    write_skill(init_cfg)
+    print(f"wrote shared skill: {init_cfg.skill_dir / 'SKILL.md'}")
+
+    if link_agents:
+        rc = cmd_link_agents(init_cfg, agents, force_link)
+        if rc != 0:
+            return rc
+
+    return cmd_doctor(init_cfg)
+
+
+def _ensure_wiki_skeleton(cfg: Config, title: str) -> list[Path]:
+    if cfg.wiki_root.exists() and not cfg.wiki_root.is_dir():
+        raise NotADirectoryError(f"wiki root exists but is not a directory: {cfg.wiki_root}")
+
+    created: list[Path] = []
+    dirs = [
+        "raw",
+        "raw/articles",
+        "raw/papers",
+        "raw/notes",
+        "raw/refs",
+        "wiki",
+        "wiki/concepts",
+        "wiki/entities",
+        "wiki/projects",
+        "wiki/syntheses",
+        "wiki/playbooks",
+        "wiki/inbox",
+        "wiki/feedback",
+        "site",
+        "audit",
+        "audit/resolved",
+        "outputs/queries",
+    ]
+    for rel in dirs:
+        path = cfg.wiki_root / rel
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+            created.append(path)
+
+    today = datetime.now().date().isoformat()
+    created.extend(
+        _write_missing_files(
+            cfg.wiki_root,
+            {
+                "CLAUDE.md": _wiki_schema_template(title, today, "Claude Code"),
+                "AGENTS.md": _wiki_schema_template(title, today, "AI agents"),
+                "wiki/index.md": _wiki_index_template(title),
+                "wiki/MEMORY.md": "# MEMORY\n\nDurable conclusions promoted from inbox notes.\n",
+                "wiki/log.md": f"# Log\n\n## [{today}] init | Initialized {title}\n",
+                "audit/.gitkeep": "",
+                "audit/resolved/.gitkeep": "",
+                "site/.gitkeep": "",
+            },
+        )
+    )
+    return created
+
+
+def _write_missing_files(root: Path, files: dict[str, str]) -> list[Path]:
+    created: list[Path] = []
+    for rel, content in files.items():
+        path = root / rel
+        if path.exists():
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        created.append(path)
+    return created
+
+
+def _wiki_schema_template(title: str, today: str, agent_label: str) -> str:
+    safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
+    return f"""# {safe_title} Knowledge Base
+
+This file is the operating schema for {agent_label}. Read it before any wiki
+operation and update it when the structure, scope, or conventions change.
+
+## Scope
+
+- Covers: local agent conversations, durable decisions, reusable workflows, and selected notes.
+- Excludes: private source material that has not been explicitly approved for import.
+
+## Directories
+
+- `raw/`: immutable converted source material.
+- `wiki/`: curated pages maintained by agents and humans.
+- `wiki/inbox/`: captured notes awaiting promotion.
+- `wiki/feedback/`: audit feedback awaiting processing.
+- `site/`: generated or served output.
+- `audit/`: anchored audit comments from web or Obsidian tooling.
+
+## Operating Rules
+
+1. Prefer `pel` or `python3 -m pelib.cli` commands from the integration repo.
+2. Do not bulk-import personal vaults or session archives without explicit user approval.
+3. Keep raw converted files immutable; write durable knowledge into `wiki/`.
+4. Use `capture` for provisional durable notes, then `promote` or `promote-batch`.
+5. Record uncertain claims with confidence when possible.
+6. Append operational notes to `wiki/log.md`.
+
+## Current Articles
+
+- `wiki/index.md`
+- `wiki/MEMORY.md`
+
+## Open Questions
+
+- Which source folders should be imported first?
+- Which topics deserve first-class concept or project pages?
+
+## Created
+
+- {today}
+"""
+
+
+def _wiki_index_template(title: str) -> str:
+    safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
+    return f"""# Index - {safe_title}
+
+## Concepts
+
+No concept pages yet.
+
+## Entities
+
+No entity pages yet.
+
+## Projects
+
+No project pages yet.
+
+## Syntheses
+
+No synthesis pages yet.
+
+## Open Questions
+
+- What should be compiled into this wiki first?
+"""
 
 
 def cmd_link_agents(cfg: Config, agents: list[str], force: bool) -> int:
