@@ -10,7 +10,6 @@ except ModuleNotFoundError:  # Python 3.9/3.10 on macOS.
     tomllib = None
 
 
-DEFAULT_WIKI_ROOT = Path.home() / "Documents" / "LLM-WIKI Vault"
 DEFAULT_UPSTREAM_ROOT = Path("vendor")
 
 
@@ -36,7 +35,7 @@ def load_config(project_root: Path) -> Config:
 
     paths = data.get("paths", {})
     wiki_root_value = paths.get("wiki_root") or os.environ.get("PEL_WIKI_ROOT")
-    wiki_root = _expand(wiki_root_value, DEFAULT_WIKI_ROOT, project_root)
+    wiki_root = _expand(wiki_root_value, default_wiki_root(project_root), project_root)
     default_upstream = project_root / DEFAULT_UPSTREAM_ROOT
     upstream_root = _expand(paths.get("upstream_root"), default_upstream, project_root)
     default_skill_repo = project_root / "llm-wiki-skill"
@@ -64,6 +63,11 @@ def load_config(project_root: Path) -> Config:
         default_sync_adapters=default_adapters,
         skill_name=skill_name,
     )
+
+
+def default_wiki_root(project_root: Path) -> Path:
+    """Default to a sibling folder next to the code repository."""
+    return (project_root.parent / "LLM-WIKI Vault").resolve()
 
 
 def _expand(value: str | os.PathLike | None, default: Path, base_dir: Path) -> Path:

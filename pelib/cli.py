@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from pelib import __version__
-from pelib.config import Config, DEFAULT_WIKI_ROOT, load_config
+from pelib.config import Config, default_wiki_root, load_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("write-skill", help="Render the shared agent skill file.")
 
     p_init = sub.add_parser("init", help="Initialize local config and a wiki root for agent-driven setup.")
-    p_init.add_argument("--wiki-root", help="Local LLM Wiki root path. Defaults to configured or built-in path.")
+    p_init.add_argument(
+        "--wiki-root",
+        help="Local LLM Wiki root path. Defaults to configured value or <repo-parent>/LLM-WIKI Vault.",
+    )
     p_init.add_argument("--title", default="Personal Execution Library", help="Title for a newly scaffolded wiki.")
     p_init.add_argument(
         "--overwrite-config",
@@ -270,7 +273,7 @@ def cmd_write_config(cfg: Config) -> int:
     if path.exists():
         print(f"exists: {path}")
         return 0
-    _write_config_file(cfg, DEFAULT_WIKI_ROOT)
+    _write_config_file(cfg, default_wiki_root(cfg.project_root))
     print(f"wrote {path}")
     return 0
 
@@ -391,10 +394,10 @@ def _ensure_wiki_skeleton(cfg: Config, title: str) -> list[Path]:
             cfg.wiki_root,
             {
                 "CLAUDE.md": _wiki_schema_template(title, today, "Claude Code"),
-                "AGENTS.md": _wiki_schema_template(title, today, "AI agents"),
+                "AGENTS.md": _wiki_schema_template(title, today, "AI 代理"),
                 "wiki/index.md": _wiki_index_template(title),
-                "wiki/MEMORY.md": "# MEMORY\n\nDurable conclusions promoted from inbox notes.\n",
-                "wiki/log.md": f"# Log\n\n## [{today}] init | Initialized {title}\n",
+                "wiki/MEMORY.md": "# MEMORY\n\n这里存放从 inbox 提升后的长期结论。\n",
+                "wiki/log.md": f"# Log\n\n## [{today}] init | 初始化 {title}\n",
                 "audit/.gitkeep": "",
                 "audit/resolved/.gitkeep": "",
                 "site/.gitkeep": "",
@@ -418,45 +421,44 @@ def _write_missing_files(root: Path, files: dict[str, str]) -> list[Path]:
 
 def _wiki_schema_template(title: str, today: str, agent_label: str) -> str:
     safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
-    return f"""# {safe_title} Knowledge Base
+    return f"""# {safe_title} 知识库
 
-This file is the operating schema for {agent_label}. Read it before any wiki
-operation and update it when the structure, scope, or conventions change.
+本文件是 {agent_label} 的运行约定。执行任何 wiki 操作前先阅读，并在结构、范围或约定变化时更新。
 
-## Scope
+## 范围
 
-- Covers: local agent conversations, durable decisions, reusable workflows, and selected notes.
-- Excludes: private source material that has not been explicitly approved for import.
+- 包含：本地 AI 会话、可复用决策、工作流沉淀、精选笔记。
+- 不包含：未明确授权导入的私有材料。
 
-## Directories
+## 目录说明
 
-- `raw/`: immutable converted source material.
-- `wiki/`: curated pages maintained by agents and humans.
-- `wiki/inbox/`: captured notes awaiting promotion.
-- `wiki/feedback/`: audit feedback awaiting processing.
-- `site/`: generated or served output.
-- `audit/`: anchored audit comments from web or Obsidian tooling.
+- `raw/`：只读原始素材（转换后的来源数据，不直接改写）。
+- `wiki/`：人工与代理共同维护的沉淀知识页。
+- `wiki/inbox/`：待整理、待提升的捕获笔记。
+- `wiki/feedback/`：待处理的审查反馈。
+- `site/`：静态输出或预览产物目录。
+- `audit/`：来自 Web/Obsidian 的锚点审计意见。
 
-## Operating Rules
+## 运行规则
 
-1. Prefer `pel` or `python3 -m pelib.cli` commands from the integration repo.
-2. Do not bulk-import personal vaults or session archives without explicit user approval.
-3. Keep raw converted files immutable; write durable knowledge into `wiki/`.
-4. Use `capture` for provisional durable notes, then `promote` or `promote-batch`.
-5. Record uncertain claims with confidence when possible.
-6. Append operational notes to `wiki/log.md`.
+1. 优先在集成仓库中使用 `pel` 或 `python3 -m pelib.cli`。
+2. 未经用户明确同意，不要批量导入个人 Vault 或会话归档。
+3. `raw/` 保持不可变；长期知识写入 `wiki/`。
+4. 先 `capture`，再通过 `promote` / `promote-batch` 进入长期页。
+5. 不确定结论要标注置信度。
+6. 关键动作追加到 `wiki/log.md`。
 
-## Current Articles
+## 当前核心页面
 
 - `wiki/index.md`
 - `wiki/MEMORY.md`
 
-## Open Questions
+## 待决问题
 
-- Which source folders should be imported first?
-- Which topics deserve first-class concept or project pages?
+- 优先导入哪些来源目录？
+- 哪些主题应升级为独立的概念页或项目页？
 
-## Created
+## 创建日期
 
 - {today}
 """
@@ -464,27 +466,27 @@ operation and update it when the structure, scope, or conventions change.
 
 def _wiki_index_template(title: str) -> str:
     safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
-    return f"""# Index - {safe_title}
+    return f"""# 索引 - {safe_title}
 
-## Concepts
+## 概念（Concepts）
 
-No concept pages yet.
+暂无概念页面。
 
-## Entities
+## 实体（Entities）
 
-No entity pages yet.
+暂无实体页面。
 
-## Projects
+## 项目（Projects）
 
-No project pages yet.
+暂无项目页面。
 
-## Syntheses
+## 综合（Syntheses）
 
-No synthesis pages yet.
+暂无综合页面。
 
-## Open Questions
+## 待决问题
 
-- What should be compiled into this wiki first?
+- 这个 wiki 现在最应该先沉淀什么？
 """
 
 
@@ -1399,78 +1401,75 @@ def write_skill(cfg: Config) -> None:
     skill = f"""---
 name: {cfg.skill_name}
 description: >-
-  Use this skill when the user asks to remember, ingest, query, update, audit,
-  or reuse knowledge from the shared personal execution library. The library is
-  one central LLM Wiki shared by Codex, Claude Code, and other local agents.
+  当用户希望从共享个人执行库中进行记忆沉淀、导入、检索、更新、审查或复用知识时使用此技能。
+  该执行库是由 Codex、Claude Code 等本地代理共享的统一 LLM Wiki。
 ---
 
-# Personal Execution Library
+# Personal Execution Library（个人执行库）
 
-This is a thin shared skill. Do not create a new knowledge base for this agent.
-Use the central wiki below.
+这是一个轻量共享技能。不要为当前代理创建新的知识库，统一使用下面的中心 wiki。
 
-## Central Wiki
+## 中心 Wiki
 
-- Wiki root: `{cfg.wiki_root}`
-- Raw sources: `{cfg.wiki_root / "raw"}`
-- Human/agent-maintained wiki: `{cfg.wiki_root / "wiki"}`
-- Generated site: `{cfg.wiki_root / "site"}`
-- Agent schema files:
+- Wiki 根目录：`{cfg.wiki_root}`
+- 原始素材：`{cfg.wiki_root / "raw"}`
+- 人工/代理共同维护的知识区：`{cfg.wiki_root / "wiki"}`
+- 站点输出：`{cfg.wiki_root / "site"}`
+- 代理约定文件：
   - `{cfg.wiki_root / "CLAUDE.md"}`
   - `{cfg.wiki_root / "AGENTS.md"}`
 
-## Operating Model
+## 工作模型
 
-Use the central wiki as the durable memory and execution library:
+把中心 wiki 作为长期记忆与执行库：
 
-1. Read `CLAUDE.md` or `AGENTS.md` at the start of any wiki operation.
-2. Read `wiki/index.md`, `wiki/overview.md`, `wiki/hot.md`, and `wiki/MEMORY.md` before answering from the library.
-3. Keep `raw/` immutable. Never edit converted session transcripts directly.
-4. Write durable knowledge into `wiki/`, not into this skill directory.
-5. Use wikilinks like `[[ConceptName]]` for cross-agent references.
-6. Append operational notes to `wiki/log.md`.
+1. 执行 wiki 操作前先读 `CLAUDE.md` 或 `AGENTS.md`。
+2. 回答前先读 `wiki/index.md`、`wiki/overview.md`、`wiki/hot.md`、`wiki/MEMORY.md`。
+3. `raw/` 保持不可变，不直接编辑会话转录源文件。
+4. 长期知识写入 `wiki/`，不要写回技能目录。
+5. 使用 `[[ConceptName]]` 这类 wikilink 建立跨代理关联。
+6. 关键操作记录追加到 `wiki/log.md`。
 
-## Common Commands
+## 常用命令
 
-Run these from the integration project:
+在集成仓库中执行：
 
 ```bash
 cd {cfg.project_root}
 python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
-python3 -m pelib.cli capture "A durable conclusion or decision"
+python3 -m pelib.cli capture "一条可长期复用的结论或决策"
 python3 -m pelib.cli inbox
 python3 -m pelib.cli promote <inbox-note> --to memory
-python3 -m pelib.cli feedback "This page needs clearer evidence links" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
+python3 -m pelib.cli feedback "这页需要更清晰的证据链接" --from obsidian --target "wiki/projects/dotfiles.md" --verdict needs-work
 python3 -m pelib.cli feedback-inbox
 python3 -m pelib.cli promote-batch --to memory --dry-run
 python3 -m pelib.cli query "starship dotfiles"
 python3 -m pelib.cli obsidian-import "daily-logs/2026-03-25" --dry-run
 ```
 
-## When To Use
+## 适用场景
 
-- The user asks what past AI conversations concluded.
-- The user wants to ingest a conversation, note, article, or decision.
-- The user wants an answer grounded in their own local wiki.
-- The user wants an agent to reuse knowledge created by another agent.
-- The user asks to update memory, project facts, or execution conventions.
-- The user says "remember this", "this is the conclusion", or "use this later".
+- 用户想知道历史 AI 对话的结论。
+- 用户希望导入会话、笔记、文章或决策。
+- 用户希望答案基于本地 wiki，而不是通用知识。
+- 用户希望不同代理复用同一份沉淀知识。
+- 用户要求更新记忆、项目事实或执行约定。
+- 用户明确说“记住这个结论”“后面要复用”。
 
-## Workflow Hints
+## 工作流建议
 
-- For sync operations, prefer the `pel` wrapper if installed.
-- For deep edits, follow the wiki rules in `CLAUDE.md` and `AGENTS.md`.
-- For durable conclusions, use `capture` first; then use `inbox` and `promote`
-  to move reviewed notes into `MEMORY.md`, `concepts/`, `entities/`, or `projects/`.
-- Add `--confidence` on `capture`/`promote` when a claim is uncertain.
-- Capture review notes from web/Obsidian via `feedback` and triage with `feedback-inbox`.
-- For larger inbox cleanup, use `promote-batch` with `--dry-run` first.
-- For quick discovery before answering, use `query` to rank candidate pages.
-- For Obsidian notes, use `obsidian-import` to whitelist explicit paths instead of syncing the whole vault.
-- Do not promote uncertain or speculative claims without marking uncertainty.
-- If a fact is not in the wiki, say so and suggest what source to ingest.
-- Do not copy this wiki into agent-specific folders.
+- 做同步时优先使用 `pel` 封装命令（若已安装）。
+- 深度编辑遵守 `CLAUDE.md` 与 `AGENTS.md` 的规则。
+- 长期结论先 `capture`，再用 `inbox` + `promote` 进入 `MEMORY.md`、`concepts/`、`entities/`、`projects/`。
+- 不确定结论在 `capture`/`promote` 时加 `--confidence`。
+- Web/Obsidian 审查意见通过 `feedback` 采集，再用 `feedback-inbox` 分拣。
+- inbox 量大时先 `promote-batch --dry-run` 预演。
+- 回答前先 `query`，按相关度定位页面。
+- Obsidian 导入优先白名单路径，不要整库盲同步。
+- 不确定或猜测性结论不应无标注进入长期页。
+- 若 wiki 中不存在该事实，要明确说明并建议补充来源。
+- 不要把此 wiki 复制到代理私有目录。
 """
     (cfg.skill_dir / "SKILL.md").write_text(skill, encoding="utf-8")
 

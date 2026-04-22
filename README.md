@@ -1,72 +1,76 @@
-# Personal Execution Library
+# Personal Execution Library（个人执行库）
 
-One local command-line wrapper for turning AI-agent conversations and selected notes into a shared LLM Wiki.
+一个本地命令行封装层，用于把 AI 代理会话与精选笔记沉淀为可复用的 LLM Wiki。
 
-This repository contains:
+本仓库包含：
 
-- `pelib/` — the `pel` CLI and local workflow commands.
-- `llmwiki/` — a bundled, conversion-focused subset of upstream `llm-wiki`.
-- `llm-wiki-skill/` — optional web viewer and Obsidian audit tooling.
+- `pelib/`：`pel` CLI 与本地工作流命令。
+- `llmwiki/`：上游 `llm-wiki` 的精简、面向转换的子集。
+- `llm-wiki-skill/`：可选的网页预览与 Obsidian 审查工具。
 
-Upstream attribution and boundaries are documented in [docs/VENDORED_PROJECTS.md](docs/VENDORED_PROJECTS.md).
+上游来源与边界见 [docs/VENDORED_PROJECTS.md](docs/VENDORED_PROJECTS.md)。
 
-## What It Does
+## 功能概览
 
-- Converts local agent sessions into Markdown under a configured wiki root.
-- Provides inbox-style capture and promotion workflows for durable notes.
-- Searches curated wiki pages for quick recall.
-- Imports explicit Obsidian files or folders by whitelist.
-- Optionally serves the bundled `llm-wiki-skill` web viewer.
+- 将本地代理会话转换为 Markdown，写入配置的 wiki 根目录。
+- 提供 inbox 风格的 capture / promote 知识沉淀流程。
+- 检索已沉淀 wiki 页面，支持快速回忆。
+- 通过白名单导入指定 Obsidian 文件或目录。
+- 可选启动 `llm-wiki-skill` 网页查看器。
 
-## Requirements
+## 依赖
 
 - Python 3.9+
 - Git
-- Node.js/npm only for optional `llm-wiki-skill` web or Obsidian plugin commands
+- Node.js / npm（仅在使用网页查看器或 Obsidian 插件时需要）
 
-## AI Agent Setup
+## AI 代理初始化（推荐）
 
-This project is designed so an AI agent can initialize it for you. Give the
-agent this repository URL and tell it:
+本项目默认由 AI 代理完成初始化，而不是让用户手工逐条执行。
 
-- where the local wiki should live, for example `~/Documents/LLM-WIKI Vault`
-- a short title for the wiki
-- whether to link the shared skill into Codex/Claude skill directories
+把仓库 URL 给代理后，代理应先确认以下信息：
 
-Agents should read [AGENTS.md](AGENTS.md) first. The main setup command is:
+1. `wiki_root` 放在哪里（必须先问）。
+2. wiki 标题。
+3. 是否链接共享技能到 Codex / Claude 目录。
+
+如果用户对路径没有明确偏好，默认使用“代码仓库同级目录”：
+
+- `<repo-parent>/LLM-WIKI Vault`
+- 例如仓库在 `/Users/alice/workspace/personal-execution-library`，则默认 wiki 在 `/Users/alice/workspace/LLM-WIKI Vault`
+
+初始化命令：
 
 ```bash
-python3 -m pelib.cli init --wiki-root "~/Documents/LLM-WIKI Vault" --title "Personal Execution Library" --link-agents
+python3 -m pelib.cli init --wiki-root "<wiki-root>" --title "<wiki-title>" --link-agents
 ```
 
-Then validate:
+校验命令：
 
 ```bash
 python3 -m pelib.cli doctor
 python3 -m pelib.cli sync --dry-run
 ```
 
-The `init` command is idempotent: it creates missing config, wiki folders,
-schema files, and the generated shared skill under `.pelib/agent-skill` while
-preserving existing wiki content.
+`init` 是幂等的：会补齐缺失配置、目录、schema 与 `.pelib/agent-skill`，并尽量保留已有 wiki 内容。
 
-## Manual Setup
+## 手动配置
 
-Create a local config from the example:
+先复制配置模板：
 
 ```bash
 cp pelib.example.toml pelib.toml
 ```
 
-Edit `pelib.toml` and set your local wiki path:
+编辑 `pelib.toml`：
 
 ```toml
 [paths]
-wiki_root = "~/Documents/LLM-WIKI Vault"
+wiki_root = "../LLM-WIKI Vault"
 llm_wiki_skill_repo = "./llm-wiki-skill"
 ```
 
-The wiki root should contain the normal LLM Wiki folders/files:
+wiki 根目录应包含：
 
 ```text
 raw/
@@ -76,16 +80,15 @@ CLAUDE.md
 AGENTS.md
 ```
 
-If you are not using `init`, render the generated local skill before running
-`doctor`:
+如果不走 `init`，在执行 `doctor` 前先渲染共享技能：
 
 ```bash
 python3 -m pelib.cli write-skill
 ```
 
-## Run
+## 运行命令
 
-Without installing:
+不安装直接运行：
 
 ```bash
 python3 -m pelib.cli status
@@ -94,7 +97,7 @@ python3 -m pelib.cli sync --dry-run
 python3 -m pelib.cli sync
 ```
 
-Or install as an editable local CLI:
+或安装为可编辑 CLI：
 
 ```bash
 python3 -m venv .venv
@@ -104,11 +107,11 @@ pel status
 pel sync --dry-run
 ```
 
-## Core Workflows
+## 核心工作流
 
-### Sync Agent Sessions
+### 同步代理会话
 
-Default sync adapters are intentionally limited:
+默认启用的适配器：
 
 - `claude_code`
 - `codex_cli`
@@ -119,36 +122,36 @@ pel sync --dry-run
 pel sync
 ```
 
-Run a specific adapter:
+指定适配器：
 
 ```bash
 pel sync --adapter codex_cli --dry-run
 ```
 
-Obsidian is opt-in:
+Obsidian 采用显式导入：
 
 ```bash
 pel obsidian-import "daily-logs/2026-03-25" --dry-run
 ```
 
-### Capture And Promote Knowledge
+### 沉淀与提升知识
 
 ```bash
-pel capture "A durable conclusion"
+pel capture "一条可长期复用的结论"
 pel inbox
 pel promote <inbox-note> --to memory
 pel promote-batch --to memory --dry-run
 pel query "starship dotfiles"
 ```
 
-### Feedback Loop
+### 审查反馈闭环
 
 ```bash
-pel feedback "Needs clearer source links" --from web --target "wiki/MEMORY.md" --verdict needs-work
+pel feedback "该页面证据链接还不够清晰" --from web --target "wiki/MEMORY.md" --verdict needs-work
 pel feedback-inbox
 ```
 
-### Optional Web / Obsidian Tooling
+### 可选 Web / Obsidian 工具
 
 ```bash
 pel skill-web-build --install
@@ -157,29 +160,25 @@ pel skill-obsidian-build --install
 pel skill-obsidian-link "/path/to/your/Obsidian vault"
 ```
 
-## Agent Skill Sharing
-
-Link the shared skill into local agent skill directories:
+## 共享技能链接
 
 ```bash
 pel link-agents
 ```
 
-This creates symlinks such as:
+会创建类似软链接：
 
 - `~/.codex/skills/personal-execution-library -> ./.pelib/agent-skill`
 - `~/.claude/skills/personal-execution-library -> ./.pelib/agent-skill`
 
-Durable knowledge stays in the configured wiki root, not inside agent-local skill folders.
+长期知识始终保存在 `wiki_root`，不放在代理本地技能目录。
 
-## Tests
+## 测试
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## Repository Hygiene
+## 仓库卫生
 
-Do not commit local wiki contents, virtual environments, generated `.pelib/`
-skill output, generated package metadata, `node_modules`, or build outputs.
-Keep personal paths in `pelib.toml`, which is intentionally ignored.
+不要提交本地 wiki 内容、虚拟环境、生成的 `.pelib/` 产物、`node_modules`、构建输出或个人路径配置。

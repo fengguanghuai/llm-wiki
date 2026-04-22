@@ -1,8 +1,8 @@
-# Contributing
+# 贡献指南
 
-Thanks for helping improve Personal Execution Library.
+感谢你改进 Personal Execution Library。
 
-## Development Setup
+## 开发环境
 
 ```bash
 python3 -m venv .venv
@@ -11,20 +11,20 @@ pip install -e .
 cp pelib.example.toml pelib.toml
 ```
 
-Edit `pelib.toml` to point at a local test wiki root.
+编辑 `pelib.toml`，让 `wiki_root` 指向本地测试目录。
 
-## Checks
+## 校验
 
-Run the Python test suite:
+运行 Python 测试：
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-If you touch optional `llm-wiki-skill` web or plugin code, also run the relevant npm build in that subproject.
+如果改动了 `llm-wiki-skill` 的 web 或插件代码，也请在对应子项目执行 npm 构建。
 
-## Hygiene
+## 卫生规范
 
-- Do not commit personal wiki contents, local config, virtual environments, `node_modules`, or generated build output.
-- Keep user-specific paths out of committed files.
-- Preserve third-party attribution under `third_party_licenses/`.
+- 不要提交个人 wiki 内容、本地配置、虚拟环境、`node_modules` 或构建产物。
+- 不要在仓库中提交用户机器专属路径。
+- 保留 `third_party_licenses/` 下的第三方归属声明。

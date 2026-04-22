@@ -1,7 +1,7 @@
 [paths]
-# Local path to your LLM Wiki vault. This file is a template; copy it to
-# pelib.toml and edit it for your machine.
-wiki_root = "~/Documents/LLM-WIKI Vault"
+# 本地 LLM Wiki 路径。该文件是模板，请复制为 pelib.toml 后按机器实际路径修改。
+# 推荐默认：代码仓库同级目录，例如 ../LLM-WIKI Vault
+wiki_root = "../LLM-WIKI Vault"
 llm_wiki_skill_repo = "./llm-wiki-skill"
 
 [skill]
