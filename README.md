@@ -32,7 +32,7 @@
 
 1. `wiki_root` 放在哪里（必须先问）。
 2. wiki 标题。
-3. 是否链接共享技能到 Codex / Claude 目录。
+3. 是否链接共享技能到 Codex / Claude 目录；默认应链接，除非用户明确拒绝。
 
 如果用户对路径没有明确偏好，默认使用“代码仓库同级目录”：
 
@@ -43,6 +43,12 @@
 
 ```bash
 python3 -m pelib.cli init --wiki-root "<wiki-root>" --title "<wiki-title>" --link-agents
+```
+
+如果初始化时漏掉了 `--link-agents`，应立即补跑：
+
+```bash
+python3 -m pelib.cli link-agents
 ```
 
 校验命令：

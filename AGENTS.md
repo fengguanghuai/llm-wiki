@@ -16,7 +16,7 @@
 
 1. `wiki_root` 存放路径（必须先确认）
 2. wiki 标题
-3. 是否把共享技能链接到本机 Codex / Claude 目录
+3. 是否把共享技能链接到本机 Codex / Claude 目录；默认应链接，除非用户明确拒绝
 
 路径默认策略（用户不清楚时）：
 
@@ -31,6 +31,12 @@
 
 ```bash
 python3 -m pelib.cli init --wiki-root "<wiki-root>" --title "<wiki-title>" --link-agents
+```
+
+如果初始化时漏掉了 `--link-agents`，应立即补跑：
+
+```bash
+python3 -m pelib.cli link-agents
 ```
 
 若 `pelib.toml` 已存在且用户明确要求替换，再加：
