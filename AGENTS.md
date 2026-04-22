@@ -5,7 +5,7 @@
 
 ## 目标
 
-在本地建立一个 Personal Execution Library：
+在本地建立一个 llm-wiki：
 
 - 一个轻量 Python CLI（`pelib`）
 - 一个可长期复用的本地 LLM Wiki 根目录（`wiki_root`）
@@ -21,7 +21,7 @@
 路径默认策略（用户不清楚时）：
 
 - 默认放在代码仓库同级目录：`<repo-parent>/LLM-WIKI Vault`
-- 示例：仓库在 `/Users/alice/workspace/personal-execution-library`，默认 wiki 在 `/Users/alice/workspace/LLM-WIKI Vault`
+- 示例：仓库在 `/Users/alice/workspace/llm-wiki`，默认 wiki 在 `/Users/alice/workspace/LLM-WIKI Vault`
 
 不要让用户自己运行初始化命令；拿到必要信息后由代理直接执行。
 

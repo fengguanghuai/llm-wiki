@@ -4,7 +4,7 @@ description: >-
   当用户希望从共享本地 LLM Wiki / 执行库中记忆、导入、检索、更新或复用知识时使用。
 ---
 
-# Personal Execution Library（个人执行库）
+# llm-wiki（个人知识库）
 
 这是共享技能模板。不要创建代理私有知识库；使用已配置的中心 wiki。
 
@@ -13,7 +13,7 @@ description: >-
 本地安装建议：
 
 ```bash
-python3 -m pelib.cli init --wiki-root "../LLM-WIKI Vault" --title "Personal Execution Library" --link-agents
+python3 -m pelib.cli init --wiki-root "../LLM-WIKI Vault" --title "LLM Wiki" --link-agents
 ```
 
 该命令会把可执行技能写入 `.pelib/agent-skill/`，并把代理链接到生成后的副本。

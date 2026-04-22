@@ -23,7 +23,7 @@ DEFAULT_OBSIDIAN_VAULT = Path.home() / "Documents" / "Obsidian Vault"
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="pel",
-        description="Personal Execution Library: one local LLM Wiki for many agents.",
+        description="llm-wiki: 一个可供多代理共享的本地 LLM Wiki 工作流工具。",
     )
     parser.add_argument("--version", action="version", version=f"pel {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         "--wiki-root",
         help="Local LLM Wiki root path. Defaults to configured value or <repo-parent>/LLM-WIKI Vault.",
     )
-    p_init.add_argument("--title", default="Personal Execution Library", help="Title for a newly scaffolded wiki.")
+    p_init.add_argument("--title", default="LLM Wiki", help="Title for a newly scaffolded wiki.")
     p_init.add_argument(
         "--overwrite-config",
         action="store_true",
@@ -420,7 +420,7 @@ def _write_missing_files(root: Path, files: dict[str, str]) -> list[Path]:
 
 
 def _wiki_schema_template(title: str, today: str, agent_label: str) -> str:
-    safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
+    safe_title = title.replace("\n", " ").strip() or "LLM Wiki"
     return f"""# {safe_title} 知识库
 
 本文件是 {agent_label} 的运行约定。执行任何 wiki 操作前先阅读，并在结构、范围或约定变化时更新。
@@ -465,7 +465,7 @@ def _wiki_schema_template(title: str, today: str, agent_label: str) -> str:
 
 
 def _wiki_index_template(title: str) -> str:
-    safe_title = title.replace("\n", " ").strip() or "Personal Execution Library"
+    safe_title = title.replace("\n", " ").strip() or "LLM Wiki"
     return f"""# 索引 - {safe_title}
 
 ## 概念（Concepts）
@@ -1401,11 +1401,11 @@ def write_skill(cfg: Config) -> None:
     skill = f"""---
 name: {cfg.skill_name}
 description: >-
-  当用户希望从共享个人执行库中进行记忆沉淀、导入、检索、更新、审查或复用知识时使用此技能。
-  该执行库是由 Codex、Claude Code 等本地代理共享的统一 LLM Wiki。
+  当用户希望从共享 llm-wiki 中进行记忆沉淀、导入、检索、更新、审查或复用知识时使用此技能。
+  该知识库由 Codex、Claude Code 等本地代理共享。
 ---
 
-# Personal Execution Library（个人执行库）
+# llm-wiki（个人知识库）
 
 这是一个轻量共享技能。不要为当前代理创建新的知识库，统一使用下面的中心 wiki。
 

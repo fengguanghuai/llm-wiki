@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "personal-execution-library"
+name = "llm-wiki"
 version = "0.1.0"
-description = "A thin local integration layer that gives multiple AI agents one shared LLM Wiki / execution library."
+description = "A local workflow layer for building and operating one shared LLM Wiki across multiple AI agents."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []

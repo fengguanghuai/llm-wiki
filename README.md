@@ -1,4 +1,4 @@
-# Personal Execution Library（个人执行库）
+# llm-wiki（个人知识库）
 
 一个本地命令行封装层，用于把 AI 代理会话与精选笔记沉淀为可复用的 LLM Wiki。
 
@@ -37,7 +37,7 @@
 如果用户对路径没有明确偏好，默认使用“代码仓库同级目录”：
 
 - `<repo-parent>/LLM-WIKI Vault`
-- 例如仓库在 `/Users/alice/workspace/personal-execution-library`，则默认 wiki 在 `/Users/alice/workspace/LLM-WIKI Vault`
+- 例如仓库在 `/Users/alice/workspace/llm-wiki`，则默认 wiki 在 `/Users/alice/workspace/LLM-WIKI Vault`
 
 初始化命令：
 

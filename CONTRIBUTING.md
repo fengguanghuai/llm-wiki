@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢你改进 Personal Execution Library。
+感谢你改进 llm-wiki。
 
 ## 开发环境
 
