@@ -19,7 +19,7 @@ class Config:
     wiki_root: Path
     llm_wiki_skill_repo: Path
     default_sync_adapters: tuple[str, ...]
-    skill_name: str = "personal-execution-library"
+    skill_name: str = "llm-wiki"
 
     @property
     def skill_dir(self) -> Path:
@@ -47,7 +47,7 @@ def load_config(project_root: Path) -> Config:
     )
 
     skill = data.get("skill", {})
-    skill_name = skill.get("name", "personal-execution-library")
+    skill_name = skill.get("name", "llm-wiki")
     sync = data.get("sync", {})
     default_adapters = tuple(
         sync.get(

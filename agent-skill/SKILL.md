@@ -1,5 +1,5 @@
 ---
-name: personal-execution-library
+name: llm-wiki
 description: >-
   当用户希望从共享本地 LLM Wiki / 执行库中记忆、导入、检索、更新或复用知识时使用。
 ---

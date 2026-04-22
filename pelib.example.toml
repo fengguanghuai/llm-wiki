@@ -5,7 +5,7 @@ wiki_root = "../LLM-WIKI Vault"
 llm_wiki_skill_repo = "./llm-wiki-skill"
 
 [skill]
-name = "personal-execution-library"
+name = "llm-wiki"
 
 [sync]
 default_adapters = ["claude_code", "codex_cli", "copilot-chat"]

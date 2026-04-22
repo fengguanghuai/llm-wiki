@@ -168,8 +168,8 @@ pel link-agents
 
 会创建类似软链接：
 
-- `~/.codex/skills/personal-execution-library -> ./.pelib/agent-skill`
-- `~/.claude/skills/personal-execution-library -> ./.pelib/agent-skill`
+- `~/.codex/skills/llm-wiki -> ./.pelib/agent-skill`
+- `~/.claude/skills/llm-wiki -> ./.pelib/agent-skill`
 
 长期知识始终保存在 `wiki_root`，不放在代理本地技能目录。
 
