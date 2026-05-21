@@ -1,0 +1,10 @@
+[paths]
+# Local LLM Wiki root. This file is a template — copy to pelib.toml and edit.
+# Default: a sibling folder next to the code repo, e.g. ../LLM-WIKI Vault
+wiki_root = "../LLM-WIKI Vault"
+
+[skill]
+name = "llm-wiki"
+
+[sync]
+default_adapters = ["claude_code", "codex_cli", "gemini_cli"]

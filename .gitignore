@@ -1,0 +1,26 @@
+# Local config
+pelib.toml
+.pelib/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Wiki content if accidentally created in-repo
+raw/
+wiki/
+site/
+.llmwiki-state.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
