@@ -112,12 +112,24 @@ pel doctor
 | `promote-batch` | 批量提升,支持 `--dry-run` |
 | `query` | 在长期页中检索 |
 | `correct` | 在 `wiki/log.md` 追加一条纠错记录 |
+| `sync` | 把本机 AI 会话转换为 `raw/sessions/` 下的 Markdown |
+| `adapters` | 列出已注册的 session adapter |
 
-## 路线图
+## Session 同步
 
-下一阶段(尚未实现):
+`sync` 命令支持三个 adapter,可自动发现并转换本机 AI 会话记录:
 
-- `sync` 命令 + 3 个 adapter(`claude_code` / `codex_cli` / `gemini_cli`),把 CLI 会话转换为 `raw/sessions/` 下的 Markdown。
+| Adapter | 数据来源 |
+|---|---|
+| `claude_code` | `~/.claude/projects/*/*.jsonl` |
+| `codex_cli` | `~/.codex/archived_sessions/` |
+| `gemini_cli` | `~/.gemini/tmp/` |
+
+```bash
+pel sync                          # 同步所有已配置 adapter
+pel sync --adapter claude_code    # 只同步 Claude Code
+pel sync --dry-run                # 预览,不写文件
+```
 
 ## 测试
 
